@@ -1,0 +1,10 @@
+{
+  "analyze": {
+    "exclude": []
+  },
+  "createdAt": "2026-10-10T14:48:57.382003+00:00",
+  "hexVersion": "26.9.12",
+  "id": "81a140f2-4826-4f43-9834-dfabdae3ebf5",
+  "lifecycle_enforcement": "mandatory",
+  "name": "deskman"
+}

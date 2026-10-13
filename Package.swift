@@ -22,6 +22,10 @@ let package = Package(
                 path: "Sources/adapters/secondary/accessibility"),
         .target(name: "FoundationModelsAdapter", dependencies: ["DeskmanPorts"],
                 path: "Sources/adapters/secondary/foundation-models"),
+        .target(name: "ActivityStoreAdapter", dependencies: ["DeskmanPorts"],
+                path: "Sources/adapters/secondary/activity-store"),
+        .target(name: "ProcessesAdapter", dependencies: ["DeskmanPorts"],
+                path: "Sources/adapters/secondary/processes"),
         // adapters/primary — the things that drive Deskman.
         .target(name: "DeskmanUI", dependencies: ["DeskmanPorts"],
                 path: "Sources/adapters/primary/ui"),
@@ -29,8 +33,17 @@ let package = Package(
         // composition root — the only target that sees every adapter.
         .executableTarget(
             name: "Deskman",
-            dependencies: ["DeskmanUseCases", "AccessibilityAdapter", "FoundationModelsAdapter", "DeskmanUI"],
+            dependencies: ["DeskmanPorts", "DeskmanUseCases", "AccessibilityAdapter", "FoundationModelsAdapter",
+                           "ActivityStoreAdapter", "ProcessesAdapter", "DeskmanUI"],
             path: "Sources/app"
+        ),
+
+        // eval — a second composition root: the real model against in-memory windows.
+        // Measures whether the model picks the right tool (`swift run DeskmanEval`).
+        .executableTarget(
+            name: "DeskmanEval",
+            dependencies: ["DeskmanPorts", "DeskmanUseCases", "FoundationModelsAdapter"],
+            path: "Sources/eval"
         ),
 
         .testTarget(name: "DeskmanTests", dependencies: ["DeskmanDomain", "DeskmanPorts", "DeskmanUseCases"], path: "Tests/DeskmanTests"),

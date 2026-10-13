@@ -52,3 +52,13 @@
 
 - hexa practices: https://git.local/gary/hexa (`CLAUDE.md`, `ARCHITECTURE.md`, `founding-goals.md` G1 and G3)
 - ADR-2609121400 (hexa): the executable gate replaces the written spec.
+
+## Amendment 2026-10-10 — six tools, measured
+
+`DeskmanEval` (12 requests, real model, in-memory windows) first scored 9/12. The fixes were tool shapes, not prompts:
+
+- `tileAllWindows` split out of `tileWindows`. A flag for "all" failed either way, depending on field order.
+- `tileWindows` refuses one app and tells the model to use `arrangeWindow`; the model retries correctly.
+- Descriptions say that maximize is a layout and full screen is a separate Space, and that `openApp` is for apps not yet open.
+
+Result: 60/60 over five runs. Run `swift run -c release DeskmanEval` after any change to a tool or the instructions.

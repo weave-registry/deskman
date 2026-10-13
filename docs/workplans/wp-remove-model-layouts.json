@@ -1,0 +1,75 @@
+{
+  "id": "wp-remove-model-layouts",
+  "feature": "Remove the model-layout path Smart Arrange no longer uses",
+  "description": "ADR-2610121700 made the person's grid the only layout. LayoutAdvice, the LayoutAdvisor port, FoundationModelsLayoutAdvisor, ModelLayout.frames/house/centerBrowser, the refresh/advise timers and --diagnose-layout no longer serve Smart Arrange. Dead code that compiles is how the old rules kept leaking back; remove it, keeping the constants other code uses (maxStack, minimum sizes).",
+  "adr": "ADR-2610121700",
+  "status": "done",
+  "priority": "high",
+  "created_at": "2026-10-12T17:00:00-04:00",
+  "created_by": "planner",
+  "phases": [
+    {
+      "id": "P0",
+      "name": "Trace and remove",
+      "tier": 3,
+      "description": "hexa graph consumers on each symbol, plus grep for re-exports and conditional imports. Remove the use case, port, adapter, domain functions, timers (refreshAdvice, adviseNow, prepareSmartArrange if then empty), the chat tool's wait, the eval cases and the diagnose. Move maxStack and the minimum sizes to GridPlanner or ZonePlanner if ModelLayout goes.",
+      "gate": {
+        "type": "test",
+        "command": "scripts/gate.sh",
+        "blocking": true
+      },
+      "tasks": [
+        {
+          "id": "P0.1",
+          "name": "Remove LayoutAdvice, LayoutAdvisor, FoundationModelsLayoutAdvisor and their wiring",
+          "layer": "usecases",
+          "depends_on": [],
+          "files": [
+            "Sources/usecases/LayoutAdvice.swift",
+            "Sources/ports/Ports.swift",
+            "Sources/adapters/secondary/foundation-models/FoundationModelsLayoutAdvisor.swift",
+            "Sources/app/DeskmanApp.swift",
+            "Sources/usecases/SmartArranger.swift",
+            "Sources/usecases/ActivityService.swift",
+            "Sources/usecases/WindowService.swift",
+            "Sources/adapters/primary/ui/LearningModel.swift",
+            "Sources/adapters/secondary/foundation-models/Tools.swift",
+            "Sources/eval/main.swift"
+          ],
+          "description": "Every caller traced first; the build and the gate pass after.",
+          "status": "done"
+        },
+        {
+          "id": "P0.2",
+          "name": "Remove ModelLayout's layout functions and their tests; keep the shared constants",
+          "layer": "domain",
+          "depends_on": [
+            "P0.1"
+          ],
+          "files": [
+            "Sources/domain/ModelLayout.swift",
+            "Tests/DeskmanTests/ModelLayoutTests.swift",
+            "Tests/DeskmanTests/NoOverlapTests.swift",
+            "Tests/DeskmanTests/ZoneGeneratorTests.swift"
+          ],
+          "description": "HouseLayoutTests, BrowserColumnTests and ModelLayoutFramesTests go with the code; NeverThreeStacked keeps its GridPlanner and ZoneGenerator cases.",
+          "status": "done"
+        },
+        {
+          "id": "P0.3",
+          "name": "Docs: README and ADRs say the grid is the layout",
+          "layer": "integration",
+          "depends_on": [
+            "P0.2"
+          ],
+          "files": [
+            "README.md",
+            "docs/adrs/ADR-2610121000-the-model-proposes-the-layout.md"
+          ],
+          "description": "ADR-2610121000 marked Superseded by ADR-2610121700; README's Smart Arrange row describes the grid.",
+          "status": "done"
+        }
+      ]
+    }
+  ]
+}

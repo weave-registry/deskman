@@ -10,22 +10,24 @@ fail() { echo "GATE FAIL: $*" >&2; exit 1; }
 forbid() {
   local dir=$1; shift
   for mod in "$@"; do
-    if grep -rEn "^[[:space:]]*(@_exported[[:space:]]+)?import[[:space:]]+${mod}([[:space:]]|$)" "$dir"; then
+    if grep -rEn "^[[:space:]]*(@[A-Za-z_]+[[:space:]]+)*import[[:space:]]+${mod}([[:space:]]|$)" "$dir"; then
       fail "$dir imports $mod"
     fi
   done
 }
 OUTER="AppKit ApplicationServices FoundationModels SwiftUI Carbon"
-ADAPTERS="AccessibilityAdapter FoundationModelsAdapter DeskmanUI"
+ADAPTERS="AccessibilityAdapter FoundationModelsAdapter ActivityStoreAdapter ProcessesAdapter DeskmanUI"
 forbid Sources/domain $OUTER DeskmanPorts DeskmanUseCases $ADAPTERS
 forbid Sources/ports $OUTER DeskmanUseCases $ADAPTERS
 forbid Sources/usecases $OUTER $ADAPTERS
 forbid Sources/adapters/primary/ui FoundationModels ApplicationServices DeskmanUseCases $ADAPTERS
 forbid Sources/adapters/secondary/accessibility FoundationModels SwiftUI DeskmanUseCases $ADAPTERS
 forbid Sources/adapters/secondary/foundation-models AppKit ApplicationServices SwiftUI DeskmanUseCases $ADAPTERS
+forbid Sources/adapters/secondary/activity-store $OUTER DeskmanUseCases $ADAPTERS
+forbid Sources/adapters/secondary/processes $OUTER DeskmanUseCases $ADAPTERS
 
 # 2. Model independence (hexa G1): only the inference adapter names a model.
-if grep -rEn "SystemLanguageModel|LanguageModelSession|import FoundationModels" Sources \
+if grep -rEn "SystemLanguageModel|LanguageModelSession|import FoundationModels([[:space:]]|$)" Sources \
      | grep -v "^Sources/adapters/secondary/foundation-models/"; then
   fail "a model is named outside the inference adapter"
 fi

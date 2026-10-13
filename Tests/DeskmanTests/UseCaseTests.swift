@@ -19,7 +19,7 @@ private let music = window("u", "Music", at: Rect(x: 0, y: 0, width: 300, height
         -> (WindowService, FakeWindowControl)
     {
         let control = FakeWindowControl(windows: [safari, notes, mail, music], displays: displays, frontmost: frontmost)
-        return (WindowService(control: control), control)
+        return (WindowService(control: control, launchWait: .zero), control)
     }
 
     @Test func arrangeSetsTheLayoutFrameOnTheWindowsOwnDisplay() {
@@ -109,6 +109,16 @@ private let music = window("u", "Music", at: Rect(x: 0, y: 0, width: 300, height
         #expect(Set(control.frames.map(\.0)) == [safari.id, notes.id])
     }
 
+    @Test func tileWithNoAppsAndNoVisibleWindowsSaysSoNotAnEmptyName() {
+        // Mail is on the side display; Music is minimized. The main display has nothing visible.
+        let control = FakeWindowControl(windows: [mail, music], displays: [mainDisplay, sideDisplay], frontmost: nil)
+        let outcome = WindowService(control: control, launchWait: .zero).tile(apps: [])
+        #expect(!outcome.succeeded)
+        #expect(!outcome.message.contains("''"))
+        #expect(outcome.message.contains("No visible windows"))
+        #expect(control.frames.isEmpty)
+    }
+
     @Test func tileSkipsUnknownAppsAndSaysSo() {
         let (service, control) = make()
         let outcome = service.tile(apps: ["Safari", "Photoshop"])
@@ -117,11 +127,11 @@ private let music = window("u", "Music", at: Rect(x: 0, y: 0, width: 300, height
         #expect(control.frames.count == 1)
     }
 
-    @Test func openLaunchesAndReportsFailure() {
+    @Test func openLaunchesAndReportsFailure() async {
         let (service, control) = make()
-        #expect(service.open(app: "Calendar").succeeded)
+        #expect(await service.open(app: "Calendar").succeeded)
         #expect(control.launched == ["Calendar"])
-        #expect(!service.open(app: "Nope").succeeded)
+        #expect(await !service.open(app: "Nope").succeeded)
     }
 }
 
@@ -148,6 +158,15 @@ private let music = window("u", "Music", at: Rect(x: 0, y: 0, width: 300, height
         let reply = await service.send("x")
         #expect(assistant.prompts.count == 2)
         #expect(!reply.text.isEmpty)
+    }
+
+    @Test func aFailureOnTheRetryReportsItsOwnCauseNotTooLong() async {
+        let (service, assistant, _) = make()
+        assistant.script = [.failure(.contextFull), .failure(.failed("model busy"))]
+        let reply = await service.send("left half")
+        #expect(assistant.prompts.count == 2)
+        #expect(reply.text.contains("model busy"))
+        #expect(!reply.text.contains("too long"))
     }
 
     @Test func anUnavailableModelIsExplainedWithoutBeingCalled() async {

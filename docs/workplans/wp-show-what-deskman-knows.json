@@ -1,0 +1,143 @@
+{
+  "id": "wp-show-what-deskman-knows",
+  "feature": "Show everything Deskman knows in the map's Learned tab",
+  "description": "The Learned tab shows habits only. Deskman also tracks focus per window, Keep Arranged's state and the zone each window holds, and none of it is visible. One domain value, filled by the use cases and drawn by the map, puts it all in one place at the panel's standard size. Nothing new is stored and nothing moves a window.",
+  "adr": "ADR-2610121600",
+  "status": "done",
+  "priority": "normal",
+  "created_at": "2026-10-12T16:00:00-04:00",
+  "created_by": "planner",
+  "phases": [
+    {
+      "id": "P0",
+      "name": "Domain value and its tests",
+      "tier": 0,
+      "description": "DesktopMap.Knowledge holds the lines to show, already in words and order. Tests first: an empty Knowledge says 'Nothing yet' per section; focus samples become minutes (12 samples = 1 min); the top five windows are by focus, ties by name; a window without a model name shows app and title.",
+      "gate": {
+        "type": "test",
+        "command": "swift test --filter KnowledgeTests",
+        "blocking": true
+      },
+      "tasks": [
+        {
+          "id": "P0.1",
+          "name": "KnowledgeTests, written before the code",
+          "layer": "tests",
+          "depends_on": [],
+          "files": [
+            "Tests/DeskmanTests/KnowledgeTests.swift"
+          ],
+          "description": "Fails first. Asserts the sections, the minute arithmetic, the top-five order and the empty wording.",
+          "status": "done"
+        },
+        {
+          "id": "P0.2",
+          "name": "DesktopMap.Knowledge value type",
+          "layer": "domain",
+          "depends_on": [
+            "P0.1"
+          ],
+          "files": [
+            "Sources/domain/DesktopMap.swift"
+          ],
+          "description": "Fields: mostUsed [(name, minutes)], zones [(name, zone)], keepArranged String, bound [String]. A static builder from raw counts, names and minimums, pure.",
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": "P1",
+      "name": "Use cases fill it",
+      "tier": 3,
+      "description": "ActivityService.desktopMap() fills Knowledge from FocusTracker.windowActivity(), keepArrangedState, the grid zone each window holds, and the bound projects. Test with fakes: a window focused 24 times shows 2 min; a meeting shows the paused state.",
+      "gate": {
+        "type": "test",
+        "command": "scripts/gate.sh",
+        "blocking": true
+      },
+      "tasks": [
+        {
+          "id": "P1.1",
+          "name": "Read-only accessor for each window's grid zone",
+          "layer": "usecases",
+          "depends_on": [
+            "P0.2"
+          ],
+          "files": [
+            "Sources/usecases/SmartArranger.swift"
+          ],
+          "description": "SmartArranger.zoneLabels() -> [WindowID: String] from the last plan (\"zone 3\", \"zones 4+5\"). The model no longer proposes layouts (ADR-2610121700) and app widths are no longer learned.",
+          "status": "done"
+        },
+        {
+          "id": "P1.2",
+          "name": "ActivityService.desktopMap fills Knowledge",
+          "layer": "usecases",
+          "depends_on": [
+            "P1.1"
+          ],
+          "files": [
+            "Sources/usecases/ActivityService.swift",
+            "Sources/ports/Ports.swift",
+            "Tests/DeskmanTests/KnowledgeTests.swift"
+          ],
+          "description": "Uses the model's names from WindowNames where present. Adds the use-case tests named above.",
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": "P2",
+      "name": "The Learned tab draws it",
+      "tier": 2,
+      "description": "The tab is renamed 'What Deskman Knows' in its caption; the habit map keeps the upper part; a compact scrolling list of the five sections fills the rest, at 540 x 460. No new controls; nothing moves a window.",
+      "gate": {
+        "type": "build",
+        "command": "scripts/build-app.sh",
+        "blocking": true
+      },
+      "tasks": [
+        {
+          "id": "P2.1",
+          "name": "Knowledge list in DesktopMapView's Learned tab",
+          "layer": "primary-adapter",
+          "depends_on": [
+            "P1.2"
+          ],
+          "files": [
+            "Sources/adapters/primary/ui/DesktopMapView.swift"
+          ],
+          "description": "Section headers in .caption weight semibold, lines in .caption; text only, no innerHTML-style injection concerns (SwiftUI Text).",
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": "P3",
+      "name": "Proof a person can see it",
+      "tier": 4,
+      "description": "Run the app, picture the Learned tab, read it. Update the README row for Desktop Map. Mark ADR-2610121600 Accepted.",
+      "gate": {
+        "type": "script",
+        "command": "scripts/gate.sh && scripts/build-app.sh && open -W -n build/Deskman.app --args --diagnose-map /tmp/deskman-learned.png Learned",
+        "blocking": true
+      },
+      "tasks": [
+        {
+          "id": "P3.1",
+          "name": "Live picture checked by eye; README and ADR status",
+          "layer": "integration",
+          "depends_on": [
+            "P2.1"
+          ],
+          "files": [
+            "README.md",
+            "docs/adrs/ADR-2610121600-show-what-deskman-knows.md"
+          ],
+          "description": "Picture the Learned tab with --diagnose-map and read it: the five sections are visible, filled after a few minutes of use, and empty ones say 'Nothing yet'. Then the README's Desktop Map row mentions What Deskman Knows, and the ADR status becomes Accepted.",
+          "status": "done"
+        }
+      ]
+    }
+  ]
+}

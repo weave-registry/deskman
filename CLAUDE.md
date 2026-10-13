@@ -6,6 +6,19 @@
 - NEVER commit secrets, credentials, or .env files
 - ALWAYS run tests after making code changes
 
+## Deskman specifics (ADR-2610101046)
+
+- Swift 6, SwiftPM, macOS 26. `hexa analyze` does not read Swift; **`scripts/gate.sh` is the
+  architecture grade.** Run it before every commit. It must print `GATE PASS`.
+- One SwiftPM target per layer. The `dependencies:` lists in `Package.swift` are the
+  architecture. Never add an adapter to another adapter's dependencies.
+- Only `Sources/adapters/secondary/foundation-models/` may import `FoundationModels` or
+  name a model.
+- Coordinates inside the hexagon are top-left origin, y down. Convert AppKit frames only
+  through `CoordinateSpace` in the domain.
+- Tests use fakes of the ports (`Tests/DeskmanTests/Fakes.swift`), never copies of the subject.
+- Build the app: `scripts/build-app.sh` → `build/Deskman.app`.
+
 <!-- hexa:claude-md:start -->
 ## hexa — how to work in this project
 

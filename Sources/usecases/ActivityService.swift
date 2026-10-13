@@ -14,6 +14,8 @@ import DeskmanPorts
     private let terminals: TerminalWatch?
     /// Where each decision is written, in words (DecisionLog).
     private let decisions: (any DecisionLog)?
+    /// The learned grid (ADR-2610131157), relearned when a record lands; without it, the standard one.
+    private let grid: LearnedGrid?
     private let settings: Settings?
     private let bindings: BindingService?
     /// Windows the last Smart Arrange minimized; `undo` restores them.
@@ -46,7 +48,8 @@ import DeskmanPorts
                 settleSeconds: Double = 30, suggestDelay: Double = 5, arranger: SmartArranger? = nil,
                 focus: FocusTracker? = nil, intents: IntentLog? = nil, names: WindowNames? = nil,
                 terminals: TerminalWatch? = nil, settings: Settings? = nil, bindings: BindingService? = nil,
-                decisions: (any DecisionLog)? = nil) {
+                decisions: (any DecisionLog)? = nil, grid: LearnedGrid? = nil) {
+        self.grid = grid
         self.decisions = decisions
         self.settings = settings
         self.bindings = bindings
@@ -77,7 +80,8 @@ import DeskmanPorts
         let focused = front?.app
         intents?.observe(windows)
         let snapshot = DeskSnapshot(time: now, windows: windows, displays: displays, focusedApp: focused,
-                                    placedByDeskman: intents?.placedByDeskman(windows) ?? [])
+                                    placedByDeskman: intents?.placedByDeskman(windows) ?? [],
+                                    placedByPerson: intents?.pinned() ?? [])
         focus?.record(app: focused, window: front?.id)
 
         recordIfSettled(snapshot, now: now)
@@ -305,20 +309,29 @@ import DeskmanPorts
                           names: names?.names(for: all) ?? [:], namingProblem: names?.lastError,
                           jobs: (terminals?.match(all).byWindow ?? [:]).mapValues { $0.map(\.phrase) },
                           bound: bindings?.boundProject(of: all) ?? [:], planNote: preview.note,
-                          knowledge: knowledge(shown, displays: displays))
+                          knowledge: knowledge(shown, displays: displays), grids: grids(displays))
     }
 
     /// What Deskman knows, in words (ADR-2610121600): what it already holds, nothing new stored.
     private func knowledge(_ shown: [WindowSnapshot], displays: [Display]) -> DesktopMap.Knowledge {
         var zones: [WindowID: String] = [:]
         for w in shown {
-            if let d = Displays.containing(w.frame, in: displays), let z = GridPlanner.zoneLabel(of: w.frame, on: d) {
+            if let d = Displays.containing(w.frame, in: displays),
+               let z = GridPlanner.zoneLabel(of: w.frame, on: d, shape: grid?.shape(on: d)) {
                 zones[w.id] = z
             }
         }
         return .build(windows: shown, focus: focus?.windowActivity() ?? [:], names: names?.names(for: shown) ?? [:],
                       zones: zones, keepArranged: keepArranged ? keepArrangedState : "Off. Turn it on in the menu.",
-                      bound: settings?.boundProjects ?? [], habits: habits(), displays: displays)
+                      bound: settings?.boundProjects ?? [], habits: habits(), displays: displays,
+                      grids: grids(displays), grid: displays.first.map { grid?.describe(on: $0) ?? "" } ?? "")
+    }
+
+    /// The learned shape of each display, by index; a display on the standard grid is not here.
+    private func grids(_ displays: [Display]) -> [Int: GridShape] {
+        var shapes: [Int: GridShape] = [:]
+        for d in displays { shapes[d.index] = grid?.shape(on: d) }
+        return shapes
     }
 
     public func refreshNames() async {
@@ -385,7 +398,7 @@ import DeskmanPorts
         }
         let busy = match.busyWindows(among: here)
         guard let terminal = here.first(where: { busy.contains($0.id) }) ?? here.first,
-              let to = ZoneGenerator.zone(beside: terminal.frame, in: ZoneGenerator.snapZones(on: display)) else { return nil }
+              let to = ZoneGenerator.zone(beside: terminal.frame, in: ZoneGenerator.snapZones(on: display, shape: grid?.shape(on: display))) else { return nil }
         let suggestion = Suggestion(context: ContextKey(apps: [browser.app, terminal.app], displays: displays.count),
                                     moves: [Move(id: browser.id, app: browser.app, from: browser.frame, to: to)], evidence: 0)
         return apply(suggestion, learned: false, origin: .automatic("a new browser beside its terminal")).succeeded
@@ -403,6 +416,7 @@ import DeskmanPorts
         // Only a write that lands counts; a failed one is tried again on the next tick.
         do {
             try store.append(snapshot)
+            grid?.relearn(displays: control.displays())
             arrangementRecorded = true
         } catch {}
     }

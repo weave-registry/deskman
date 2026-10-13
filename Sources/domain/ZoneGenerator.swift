@@ -37,6 +37,11 @@ public enum ZoneGenerator {
             .sorted { ($0.x, $0.y) < ($1.x, $1.y) }
     }
 
+    /// The person's learned grid, made equal (ADR-2610131157); the standard zones when nothing is learned.
+    public static func snapZones(on display: Display, shape: GridShape?) -> [Rect] {
+        shape?.zones(on: display) ?? snapZones(on: display)
+    }
+
     /// The snap zone nearest `frame` that is not the one `frame` sits in: where a
     /// window goes to sit beside another (a new browser beside the terminal).
     public static func zone(beside frame: Rect, in zones: [Rect]) -> Rect? {

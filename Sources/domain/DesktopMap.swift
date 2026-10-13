@@ -55,11 +55,15 @@ public struct DesktopMap: Equatable, Sendable {
     public let planNote: String?
     /// Everything Deskman knows, in words, for What Deskman Knows (ADR-2610121600).
     public let knowledge: Knowledge
+    /// The learned grid of each display, by index (ADR-2610131157); absent: the standard grid.
+    public let grids: [Int: GridShape]
 
     public init(displays: [Display], windows: [WindowSnapshot], hiddenCount: Int, otherDesktops: [WindowSnapshot] = [],
                 plan: [PlannedZone], parked: [String], pinned: Set<WindowID>, habits: [HabitZone],
                 names: [WindowID: String] = [:], namingProblem: String? = nil, jobs: [WindowID: [String]] = [:],
-                bound: [WindowID: String] = [:], planNote: String? = nil, knowledge: Knowledge = .empty) {
+                bound: [WindowID: String] = [:], planNote: String? = nil, knowledge: Knowledge = .empty,
+                grids: [Int: GridShape] = [:]) {
+        self.grids = grids
         self.knowledge = knowledge
         self.jobs = jobs
         self.bound = bound
@@ -142,13 +146,15 @@ extension DesktopMap {
         /// `zones`: each window's place in the grid ("zone 3"). The five most used windows, ties by name.
         public static func build(windows: [WindowSnapshot], focus: [WindowID: Int], names: [WindowID: String],
                                  zones: [WindowID: String], keepArranged: String, bound: [String],
-                                 habits: [Habit] = [], displays: [Display] = []) -> Knowledge {
+                                 habits: [Habit] = [], displays: [Display] = [], grids: [Int: GridShape] = [:],
+                                 grid: String = "") -> Knowledge {
             let name = { (w: WindowSnapshot) in names[w.id] ?? "\(w.app) — \(w.title.prefix(40))" }
             let used = windows.filter { (focus[$0.id] ?? 0) > 0 }
                 .sorted { (focus[$1.id] ?? 0, name($0)) < (focus[$0.id] ?? 0, name($1)) }
                 .prefix(5)
                 .map { "\(name($0)): \(minutes(focus[$0.id] ?? 0))" }
-            let placed = windows.compactMap { w in zones[w.id].map { "\(name(w)): \($0)" } }
+            // Which grid it is comes first: the learned one, or the standard one (ADR-2610131157 §7).
+            let placed = (grid.isEmpty ? [] : [grid]) + windows.compactMap { w in zones[w.id].map { "\(name(w)): \($0)" } }
             let state = keepArranged.isEmpty ? [] : [keepArranged]
             func section(_ title: String, _ lines: [String]) -> Section {
                 Section(title: title, lines: lines.isEmpty ? [nothingYet] : lines)
@@ -159,7 +165,7 @@ extension DesktopMap {
             let place = { (h: Habit) -> String in
                 guard displays.indices.contains(h.placement.display) else { return h.placement.phrase }
                 let d = displays[h.placement.display]
-                return GridPlanner.zoneLabel(of: h.placement.frame(on: d), on: d) ?? h.placement.phrase
+                return GridPlanner.zoneLabel(of: h.placement.frame(on: d), on: d, shape: grids[d.index]) ?? h.placement.phrase
             }
             let habitLines = ordered.map { h in
                 h.isLearned ? "✓ \(h.app): \(place(h)) (\(h.isConfirmed ? "you chose this" : "\(h.support) of \(h.sightings)"))"

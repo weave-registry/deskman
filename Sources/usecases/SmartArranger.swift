@@ -17,11 +17,14 @@ import DeskmanPorts
     private let intents: IntentLog?
     private let settings: Settings?
     private let bindings: BindingService?
+    /// The learned grid (ADR-2610131157); without it, the standard one.
+    private let grid: LearnedGrid?
 
     /// Without `history` and `focus`, front-to-back order alone decides who gets the most room.
     public init(control: any WindowControl, history: (any ActivityStore)?,
                 focus: FocusTracker? = nil, intents: IntentLog? = nil,
-                settings: Settings? = nil, bindings: BindingService? = nil) {
+                settings: Settings? = nil, bindings: BindingService? = nil, grid: LearnedGrid? = nil) {
+        self.grid = grid
         self.settings = settings
         self.bindings = bindings
         self.control = control
@@ -94,8 +97,9 @@ import DeskmanPorts
 
         // The person's grid, and only that: 1 over 2, 3 in the middle, 4 over 5 (GridPlanner).
         // Windows already in a zone stay; the rest fill free zones; none is squeezed or minimized.
-        let grid = GridPlanner.plan(active, on: display, kept: kept.map(\.frame), center: named)
-        let plan = grid.zonePlan(on: display)
+        let shape = self.grid?.shape(on: display)
+        let grid = GridPlanner.plan(active, on: display, kept: kept.map(\.frame), center: named, shape: shape)
+        let plan = grid.zonePlan(on: display, shape: shape)
         guard !plan.placements.isEmpty else {
             return .failed(.failed("There is no free zone on this display: every zone is kept."))
         }

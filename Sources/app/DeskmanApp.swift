@@ -54,8 +54,11 @@ import DeskmanUI
         // A project's windows, bound on the model's suggestion (ADR-2610120830).
         let bindings = BindingService(control: control, names: names, settings: preferences)
         self.bindings = bindings
+        // The person's grid, learned from their own moves and made equal (ADR-2610131157).
+        let grid = LearnedGrid(history: store, clock: clock)
+        grid.decisions = decisions
         let arranger = SmartArranger(control: control, history: store, focus: focus, intents: intents,
-                                 settings: preferences, bindings: bindings)
+                                 settings: preferences, bindings: bindings, grid: grid)
         self.arranger = arranger
         // The model's tool and the menu share one arranger.
         let commands = WindowService(control: control, arranger: arranger, names: names)
@@ -66,7 +69,7 @@ import DeskmanUI
 
         let activity = ActivityService(control: control, store: store, clock: clock, arranger: arranger,
                                        focus: focus, intents: intents, names: names, terminals: terminals,
-                                       settings: preferences, bindings: bindings, decisions: decisions)
+                                       settings: preferences, bindings: bindings, decisions: decisions, grid: grid)
 
         self.deskman = deskman
         chat = ChatModel(port: deskman)
@@ -75,7 +78,7 @@ import DeskmanUI
         toast = SuggestionToast(model: learning)
         hotKey = interactive ? GlobalHotKey { [panel] in panel.toggle() } : nil
         // Hammerspoon's window manager, replaced (ADR-2610101523 §4).
-        snap = SnapService(control: control, intents: intents, settings: preferences, bindings: bindings)
+        snap = SnapService(control: control, intents: intents, settings: preferences, bindings: bindings, grid: grid)
         snapKeys = interactive ? SnapHotKeys(port: snap, report: { [learning] in learning.note($0.message) }) : nil
         dragSnap = interactive ? DragSnap(port: snap) : nil
         settings = SettingsModel(port: preferences, keys: interactive, report: { [learning] in learning.note($0.message) })

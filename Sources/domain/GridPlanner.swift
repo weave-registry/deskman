@@ -15,14 +15,10 @@ public enum GridPlanner {
         public let leftAlone: [WindowSnapshot]
 
         /// As a plan Smart Arrange carries out, each place labelled by its zone number.
-        public func zonePlan(on display: Display) -> ZonePlan {
+        public func zonePlan(on display: Display, shape: GridShape? = nil) -> ZonePlan {
             let v = display.visibleFrame
-            let snap = ZoneGenerator.snapZones(on: display)
-            let label = { (f: Rect) -> String in
-                if let i = snap.firstIndex(of: f) { return "zone \(i + 1)" }
-                if let i = snap.firstIndex(where: { $0.x == f.x && $0.y == f.y }) { return "zones \(i + 1)+\(i + 2)" }
-                return "a zone"
-            }
+            let snap = ZoneGenerator.snapZones(on: display, shape: shape)
+            let label = { (f: Rect) -> String in GridPlanner.label(f, in: snap, exact: true) ?? "a zone" }
             let placed = placements.map { p in
                 ZonePlacement(window: p.window,
                               zone: Zone(label: label(p.frame), rect: Rect(x: (p.frame.x - v.x) / v.width, y: (p.frame.y - v.y) / v.height,
@@ -39,7 +35,7 @@ public enum GridPlanner {
 
     /// `ranked`: most important first. `kept`: frames of windows that stay (pinned, being worked
     /// in, a meeting); a zone they cover by more than a tenth is not used. `center`: a window the
-    /// person named, for the middle.
+    /// person named, for the middle. `shape`: the learned grid (ADR-2610131157); nil for the standard one.
     ///
     /// 1. A window already in a zone, or filling a side column, stays: it is not moved.
     /// 2. The middle goes to the named window, else the most used browser, else the most used window.
@@ -47,13 +43,17 @@ public enum GridPlanner {
     /// 4. The rest fill the halves in order: left top, right top, left bottom, right bottom.
     /// 5. A side column with one window and a free half gives that window its full height.
     public static func plan(_ ranked: [WindowSnapshot], on display: Display, kept: [Rect],
-                            center: WindowID? = nil) -> Result {
-        let zones = ZoneGenerator.snapZones(on: display)
+                            center: WindowID? = nil, shape: GridShape? = nil) -> Result {
+        let zones = ZoneGenerator.snapZones(on: display, shape: shape)
         guard !zones.isEmpty else { return Result(placements: [], leftAlone: ranked) }
-        // Columns: the zones that share an x, top to bottom. The middle is the widest.
+        // Columns: the zones that share an x, top to bottom. The middle is the widest; among equal
+        // columns, the one at the display's center, the left one of two (ADR-2610131157 §6).
         let xs = zones.map(\.x).reduce(into: [Double]()) { if !$0.contains($1) { $0.append($1) } }.sorted()
         let columns = xs.map { x in zones.filter { $0.x == x }.sorted { $0.y < $1.y } }
-        let middle = columns.indices.max { columns[$0][0].width < columns[$1][0].width }!
+        let centerX = display.visibleFrame.x + display.visibleFrame.width / 2
+        let offCenter = { (c: Int) in abs(columns[c][0].x + columns[c][0].width / 2 - centerX) }
+        let middle = columns.indices.min { (-columns[$0][0].width.rounded(), offCenter($0), $0)
+            < (-columns[$1][0].width.rounded(), offCenter($1), $1) }!
         func whole(_ c: Int) -> Rect {
             let top = columns[c][0], bottom = columns[c].last!
             return Rect(x: top.x, y: top.y, width: top.width, height: bottom.maxY - top.y)
@@ -118,12 +118,20 @@ public enum GridPlanner {
 
     /// Which zone of the grid a window is in now, give or take an app's settling: "zone 3",
     /// "zones 4+5" for a whole side column, nil when it is in none.
-    public static func zoneLabel(of frame: Rect, on display: Display) -> String? {
-        let z = ZoneGenerator.snapZones(on: display)
-        if let i = z.firstIndex(where: { near(frame, $0) }) { return "zone \(i + 1)" }
-        for i in z.indices.dropLast() where z[i].x == z[i + 1].x {
-            let column = Rect(x: z[i].x, y: z[i].y, width: z[i].width, height: z[i + 1].maxY - z[i].y)
-            if near(frame, column) { return "zones \(i + 1)+\(i + 2)" }
+    public static func zoneLabel(of frame: Rect, on display: Display, shape: GridShape? = nil) -> String? {
+        label(frame, in: ZoneGenerator.snapZones(on: display, shape: shape), exact: false)
+    }
+
+    /// "zone 3", or "zones 4+5" for a whole column, however many zones it stacks. `exact`: the
+    /// frame is one the planner made; otherwise give or take an app's settling.
+    static func label(_ frame: Rect, in z: [Rect], exact: Bool) -> String? {
+        let same = { (a: Rect, b: Rect) in exact ? a == b : near(a, b) }
+        if let i = z.firstIndex(where: { same(frame, $0) }) { return "zone \(i + 1)" }
+        for x in Set(z.map(\.x)) {
+            let column = z.indices.filter { z[$0].x == x }
+            guard column.count > 1, let top = column.first, let bottom = column.last else { continue }
+            let whole = Rect(x: z[top].x, y: z[top].y, width: z[top].width, height: z[bottom].maxY - z[top].y)
+            if same(frame, whole) { return "zones " + column.map { "\($0 + 1)" }.joined(separator: "+") }
         }
         return nil
     }

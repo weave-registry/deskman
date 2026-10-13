@@ -35,7 +35,7 @@ extension DesktopMap {
         switch tab {
         case .now:
             return displays.flatMap { d in
-                ZoneGenerator.snapZones(on: d).enumerated().map { ScreenOutline(frame: $1, label: "\($0 + 1)", kind: .zone) }
+                ZoneGenerator.snapZones(on: d, shape: grids[d.index]).enumerated().map { ScreenOutline(frame: $1, label: "\($0 + 1)", kind: .zone) }
             }
         case .arrange:
             return plan.map { z in

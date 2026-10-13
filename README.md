@@ -108,6 +108,28 @@ Every place Deskman puts a window is one of five snap zones, or a whole side col
 
 Every Smart Arrange can be undone from the card that appears after it.
 
+### Deskman learns your grid
+
+The drawing above is the **standard grid**. Deskman replaces it with your own, learned from how
+*you* place windows, and then makes its zones equal.
+
+1. Only your moves count: a drag, a resize, a snap key. A place Deskman chose teaches nothing.
+2. Deskman learns the **shape**: how many columns, and how many zones each column stacks.
+3. It makes the zones equal. Every column gets the same width. The zones in a column get the same height.
+4. It needs 5 of your moves from the last 14 days. One window in one place counts once.
+5. A shape too fine for the display loses its weakest edges, so no zone is under 700 × 400 pt.
+
+For example, your 25% | 50% | 25% grid with stacked sides becomes three equal columns of 33%,
+with the sides still split in two. The hotkeys, drag-to-snap, Smart Arrange and On Screen all use
+the learned grid. A new grid moves no window: it applies at the next arrange or snap.
+
+> [!NOTE]
+> Two edges less than 10% apart count as one edge, and the one you used last wins. Without this
+> rule, your old 25% edges and your new 33% edges would add up to five columns.
+
+The first line of **Your grid** in What Deskman Knows says which grid is in use, and how many
+of your moves count so far. Each change of grid is written to the decision log.
+
 ## Ask in words
 
 Press <kbd>⌃</kbd><kbd>⌥</kbd><kbd>Space</kbd> and type. The model calls one of six tools:
@@ -154,7 +176,7 @@ The map draws your screens to scale. It has these parts:
 - **What Deskman Knows** — everything Deskman tracks, at the panel's standard size:
   - your habits, by zone (green = learned, red = still learning; click a red one to confirm it);
   - the windows you used most in the last 30 minutes, with minutes;
-  - which zone of your grid each window holds;
+  - which grid is in use (learned or standard), and which zone each window holds;
   - what Keep Arranged is doing, in one sentence;
   - your bound projects.
 
@@ -274,7 +296,7 @@ flowchart LR
 ```
 Sources/
   domain/      pure value types and rules, Foundation only:
-               Geometry, Window, GridPlanner (your zones), ZoneGenerator, Zones, Layout,
+               Geometry, Window, GridPlanner (your zones), GridLearner, ZoneGenerator, Zones, Layout,
                Learning, TargetMatcher, Terminals, Bindings, DesktopMap, Gateway (the policy),
                MeetingApps, Preferences, EnglishOnly, ScreenOutline
   ports/       the contracts; re-exports the domain value types
@@ -283,7 +305,7 @@ Sources/
                driving: WindowCommands, DeskmanPort, ActivityPort, SnapPort, SettingsPort, BindingPort
   usecases/    what Deskman does, written against ports only:
                WindowService, DeskmanService, ActivityService, SmartArranger, SnapService,
-               WindowGateway, BindingService, Settings, IntentLog, FocusTracker,
+               WindowGateway, BindingService, LearnedGrid, Settings, IntentLog, FocusTracker,
                WindowNames, TerminalWatch
   adapters/secondary/accessibility/      windows on every desktop; reads off the main thread
   adapters/secondary/foundation-models/  six tools, and the window namer — the only code that names a model
@@ -383,5 +405,6 @@ Every decision, and its reason, is in [`docs/adrs`](docs/adrs/).
 | [2610121630](docs/adrs/ADR-2610121630-a-decision-log.md) | A decision log |
 | [2610121700](docs/adrs/ADR-2610121700-smart-arrange-fills-your-grid.md) | Smart Arrange fills your grid |
 | [2610121800](docs/adrs/ADR-2610121800-every-action-through-one-gateway.md) | Every action goes through one gateway |
+| [2610131157](docs/adrs/ADR-2610131157-deskman-learns-your-grid.md) | Deskman learns your grid from your moves, and makes its zones equal |
 
 </details>

@@ -12,11 +12,14 @@ import DeskmanPorts
     private let intents: IntentLog?
     private let settings: Settings?
     private let bindings: BindingService?
+    /// The learned grid (ADR-2610131157); without it, the standard one.
+    private let grid: LearnedGrid?
     private var drag: (id: WindowID, app: String, frame: Rect)?
     private var confirmed = false
 
     public init(control: any WindowControl, intents: IntentLog?, settings: Settings? = nil,
-                bindings: BindingService? = nil) {
+                bindings: BindingService? = nil, grid: LearnedGrid? = nil) {
+        self.grid = grid
         self.control = control
         self.settings = settings
         self.bindings = bindings
@@ -26,12 +29,16 @@ import DeskmanPorts
     public func snapZones(at point: Point) -> [Rect] {
         let displays = control.displays()
         let d = displays.first { $0.visibleFrame.contains(point) } ?? displays.first
-        return d.map(ZoneGenerator.snapZones(on:)) ?? []
+        return d.map(zones(on:)) ?? []
+    }
+
+    private func zones(on display: Display) -> [Rect] {
+        grid?.zones(on: display) ?? ZoneGenerator.snapZones(on: display)
     }
 
     public func snapFrontmost(toZone zone: Int) -> CommandOutcome {
         guard let (w, display) = frontmost() else { return .failed("There is no window in front to snap.") }
-        let zones = ZoneGenerator.snapZones(on: display)
+        let zones = zones(on: display)
         guard (1...zones.count).contains(zone) else {
             return .failed("This display has \(zones.count) zones; there is no zone \(zone).")
         }

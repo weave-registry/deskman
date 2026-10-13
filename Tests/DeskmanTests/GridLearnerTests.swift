@@ -138,10 +138,11 @@ private func moves(_ time: Double, _ places: [Rect], on display: Display = wide)
 }
 
 /// One window the person placed, in a record of its own.
-private func placed(_ time: Double, _ app: String, _ title: String, _ rect: Rect) -> DeskSnapshot {
+private func placed(_ time: Double, _ app: String, _ title: String, _ rect: Rect, corrected: Bool = false) -> DeskSnapshot {
     let w = WindowSnapshot(id: WindowID("\(app)\(time)"), app: app, title: title,
                            frame: Placement(display: 0, rect: rect).frame(on: wide), isMinimized: false)
-    return DeskSnapshot(time: time, windows: [w], displays: [wide], focusedApp: nil, placedByPerson: [w.id])
+    return DeskSnapshot(time: time, windows: [w], displays: [wide], focusedApp: nil, placedByPerson: [w.id],
+                        corrected: corrected ? [w.id] : [])
 }
 
 @Suite struct EqualGridTests {
@@ -271,5 +272,151 @@ private func placed(_ time: Double, _ app: String, _ title: String, _ rect: Rect
         let service = ActivityService(control: control, store: store, clock: clock, grid: grid)
         let section = service.desktopMap().knowledge.sections.first { $0.title == "Your grid" }
         #expect(section?.lines.first?.contains("15 of your moves") == true, "\(String(describing: section))")
+    }
+}
+
+// ADR-2610131157, amendment "learn from the grid in use". 13:40–14:00, 2026-10-13: using the learned
+// grid erased it. The user: "we need to be sensitive to reconfigure the zones if we sense the user
+// needs to adjust the window sizes."
+@Suite struct GridInUseTests {
+    /// The person's eight moves of 2026-10-13, 12:18–14:00, as recorded.
+    static let incident: [DeskSnapshot] = [
+        placed(0, "Zoom", "Zoom Meeting", Rect(x: 0.75, y: 0.5, width: 0.25, height: 0.5667)),
+        placed(1, "iTerm2", "tuios", Rect(x: 0.75, y: 0, width: 0.25, height: 0.5)),
+        placed(2, "Zoom", "Zoom Meeting", Rect(x: 0.25, y: 0, width: 0.5, height: 1)),
+        placed(3, "Slack", "Threads", Rect(x: 0.75, y: 0.5, width: 0.25, height: 0.5)),
+        placed(4, "Slack", "Nikhil (DM)", Rect(x: 0.4833, y: 0.0167, width: 0.5, height: 1)),
+        placed(5, "Zoom", "Zoom Meeting", Rect(x: 0, y: 0.5, width: 0.3333, height: 0.5)),
+        placed(6, "Slack", "Nikhil (DM)", Rect(x: 0, y: 0.5, width: 0.3333, height: 0.5)),
+        placed(7, "Firefox", "Horizon Portal", Rect(x: 0, y: 0, width: 0.5, height: 1)),
+    ]
+
+    @Test func fromTheStandardGridTheIncidentMergesTheLeftColumn() {
+        // What happened: the record of the incident, kept so the cause stays visible.
+        #expect(GridLearner.learn(from: Self.incident, on: wide, now: 10)?.shape == GridShape(rows: [1, 2]))
+    }
+
+    @Test func fromTheGridInUseUsingItKeepsIt() {
+        let inUse = GridShape(rows: [2, 1, 2])
+        #expect(GridLearner.learn(from: Self.incident, on: wide, now: 10, inUse: inUse)?.shape == inUse)
+    }
+
+    @Test func oneCorrectionAddsAColumn() {
+        // Four moves that fit the standard grid, and the middle window resized by hand to its left half.
+        let fit = (0..<4).map { placed(Double($0), "App\($0)", "", [standard[0], standard[1], standard[3], standard[4]][$0]) }
+        let half = Rect(x: 0.25, y: 0, width: 0.25, height: 1)
+        let corrected = fit + [placed(5, "Firefox", "", half, corrected: true)]
+        #expect(GridLearner.learn(from: corrected, on: wide, now: 10)?.shape.rows.count == 4)
+        // The same place, by a plain move: one move is noise.
+        let plain = fit + [placed(5, "Firefox", "", half)]
+        #expect(GridLearner.learn(from: plain, on: wide, now: 10)?.shape.rows.count == 3)
+    }
+
+    @Test func aCorrectionIsRecordedAndOldRecordsStillRead() throws {
+        let s = placed(0, "Firefox", "", standard[2], corrected: true)
+        #expect(s.windows.first?.corrected == true)
+        let back = try JSONDecoder().decode(DeskSnapshot.self, from: JSONEncoder().encode(s))
+        #expect(back.windows.first?.corrected == true)
+        let old = #"{"time":1,"displayCount":1,"windows":[{"app":"Firefox","title":"t","isMinimized":false,"byPerson":true,"#
+            + #""placement":{"display":0,"rect":{"x":0.25,"y":0,"width":0.5,"height":1}}}]}"#
+        #expect(try JSONDecoder().decode(DeskSnapshot.self, from: Data(old.utf8)).windows.first?.corrected == nil)
+    }
+
+    @Test func oldPreferencesStillRead() throws {
+        let old = #"{"floatingApps":["Finder"],"dragSnap":true,"keepArranged":true}"#
+        let p = try JSONDecoder().decode(Preferences.self, from: Data(old.utf8))
+        #expect(p.gridShapes.isEmpty && p.keepArranged)
+    }
+}
+
+@MainActor @Suite struct CorrectionTests {
+    let clock = FakeClock()
+    let zone = Rect(x: 1280, y: 30, width: 2560, height: 1410)
+
+    func setUp() -> (IntentLog, IntentRecordingControl, FakeWindowControl) {
+        let log = IntentLog(clock: clock)
+        let w = WindowSnapshot(id: WindowID("f"), app: "Firefox", title: "", frame: Rect(x: 100, y: 100, width: 800, height: 600),
+                               isMinimized: false)
+        let fake = FakeWindowControl(windows: [w], displays: [wide], frontmost: w.id)
+        return (log, IntentRecordingControl(fake, log: log), fake)
+    }
+
+    func at(_ frame: Rect) -> [WindowSnapshot] {
+        [WindowSnapshot(id: WindowID("f"), app: "Firefox", title: "", frame: frame, isMinimized: false)]
+    }
+
+    @Test func aResizeOfAWindowDeskmanPlacedIsACorrection() throws {
+        let (log, control, _) = setUp()
+        log.observe(at(Rect(x: 100, y: 100, width: 800, height: 600)))
+        try control.setFrame(zone, of: WindowID("f"))
+        clock.t = 1
+        log.observe(at(zone))
+        clock.t = 30
+        log.observe(at(Rect(x: 1280, y: 30, width: 1100, height: 1410)))   // narrower by hand
+        #expect(log.pinned() == [WindowID("f")])
+        #expect(log.corrected() == [WindowID("f")])
+    }
+
+    @Test func aResizeAfterASnapIsACorrection() throws {
+        let (log, control, _) = setUp()
+        log.observe(at(Rect(x: 100, y: 100, width: 800, height: 600)))
+        try control.setFrame(zone, of: WindowID("f"))
+        log.personPlaced(WindowID("f"))
+        clock.t = 1
+        log.observe(at(zone))
+        clock.t = 30
+        log.observe(at(Rect(x: 1280, y: 30, width: 1100, height: 1410)))
+        #expect(log.corrected() == [WindowID("f")])
+    }
+
+    @Test func aPlainMoveIsNotACorrection() throws {
+        let (log, control, _) = setUp()
+        log.observe(at(Rect(x: 100, y: 100, width: 800, height: 600)))
+        try control.setFrame(zone, of: WindowID("f"))
+        clock.t = 1
+        log.observe(at(zone))
+        clock.t = 30
+        log.observe(at(Rect(x: 2000, y: 30, width: 2560, height: 1410)))   // moved, same size
+        #expect(log.pinned() == [WindowID("f")])
+        #expect(log.corrected().isEmpty)
+    }
+
+    @Test func aResizeOfAWindowNobodyPlacedIsNotACorrection() {
+        let (log, _, _) = setUp()
+        log.observe(at(Rect(x: 100, y: 100, width: 800, height: 600)))
+        clock.t = 30
+        log.observe(at(Rect(x: 100, y: 100, width: 1400, height: 600)))
+        #expect(log.corrected().isEmpty)
+    }
+}
+
+@MainActor @Suite struct StoredGridTests {
+    func service(_ prefs: InMemoryPreferenceStore, _ history: [DeskSnapshot]) -> (LearnedGrid, InMemoryActivityStore, Settings) {
+        let store = InMemoryActivityStore()
+        for s in history { try? store.append(s) }
+        let clock = FakeClock()
+        clock.t = 10
+        let settings = Settings(store: prefs, control: nil)
+        return (LearnedGrid(history: store, clock: clock, settings: settings), store, settings)
+    }
+
+    @Test func theGridInUseSurvivesARestart() {
+        let prefs = InMemoryPreferenceStore()
+        let (first, _, _) = service(prefs, GridInUseTests.incident.prefix(5) + moves(0, standard))
+        #expect(first.shape(on: wide) == GridShape(rows: [2, 1, 2]))
+        // A new run, the same files: it starts from 2·1·2, so the incident's moves keep it.
+        let (second, _, _) = service(prefs, GridInUseTests.incident)
+        #expect(second.shape(on: wide) == GridShape(rows: [2, 1, 2]))
+    }
+
+    @Test func forgetMyActivityForgetsTheGrid() {
+        let prefs = InMemoryPreferenceStore()
+        let (grid, store, settings) = service(prefs, moves(0, standard))
+        #expect(grid.shape(on: wide) != nil)
+        let control = FakeWindowControl(windows: [], displays: [wide])
+        let activity = ActivityService(control: control, store: store, clock: FakeClock(), settings: settings, grid: grid)
+        #expect(activity.forget().succeeded)
+        #expect(grid.shape(on: wide) == nil)
+        #expect(settings.gridShape(on: 0) == nil)
     }
 }

@@ -81,7 +81,7 @@ import DeskmanPorts
         intents?.observe(windows)
         let snapshot = DeskSnapshot(time: now, windows: windows, displays: displays, focusedApp: focused,
                                     placedByDeskman: intents?.placedByDeskman(windows) ?? [],
-                                    placedByPerson: intents?.pinned() ?? [])
+                                    placedByPerson: intents?.pinned() ?? [], corrected: intents?.corrected() ?? [])
         focus?.record(app: focused, window: front?.id)
 
         recordIfSettled(snapshot, now: now)
@@ -366,6 +366,7 @@ import DeskmanPorts
             return .failed("Could not erase the activity history: \(error).")
         }
         ledger = TrustLedger()
+        grid?.forget()
         arrangement = []
         arrangementRecorded = false
         pending = nil

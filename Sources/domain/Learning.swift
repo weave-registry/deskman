@@ -57,6 +57,9 @@ public struct WindowRecord: Equatable, Codable, Sendable {
     /// not moved it since: the only evidence `GridLearner` takes (ADR-2610131157). Nil otherwise,
     /// and in records before 2026-10-13.
     public let byPerson: Bool?
+    /// True when the person resized the window from where Deskman or a snap had put it: a zone that did
+    /// not fit, which counts as `GridLearner.minimumSupport` moves. Nil otherwise, and before 2026-10-13.
+    public let corrected: Bool?
 }
 
 /// One settled arrangement of the desktop.
@@ -67,7 +70,8 @@ public struct DeskSnapshot: Equatable, Codable, Sendable {
     public let windows: [WindowRecord]
 
     public init(time: Double, windows: [WindowSnapshot], displays: [Display], focusedApp: String?,
-                placedByDeskman: Set<WindowID> = [], placedByPerson: Set<WindowID> = []) {
+                placedByDeskman: Set<WindowID> = [], placedByPerson: Set<WindowID> = [],
+                corrected: Set<WindowID> = []) {
         self.time = time
         self.displayCount = displays.count
         self.focusedApp = focusedApp
@@ -76,7 +80,8 @@ public struct DeskSnapshot: Equatable, Codable, Sendable {
             guard let d = Displays.containing(w.frame, in: displays) else { return nil }
             return WindowRecord(app: w.app, title: w.title, placement: .of(w.frame, on: d), isMinimized: w.isMinimized,
                                 byDeskman: placedByDeskman.contains(w.id) ? true : nil,
-                                byPerson: placedByPerson.contains(w.id) ? true : nil)
+                                byPerson: placedByPerson.contains(w.id) ? true : nil,
+                                corrected: corrected.contains(w.id) ? true : nil)
         }
     }
 

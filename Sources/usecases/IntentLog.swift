@@ -23,6 +23,11 @@ import DeskmanPorts
     /// Where the window was before Deskman's move, and when: a read that shows it there again
     /// this soon started before the move. It is no news, and nobody's intent.
     private var deskmanFrom: [WindowID: (time: Double, frame: Rect)] = [:]
+    /// Where Deskman, or a snap, last put each window, until the person takes it elsewhere.
+    private var placedAt: [WindowID: Rect] = [:]
+    /// Windows the person resized from where Deskman or a snap put them (ADR-2610131157): the zone did
+    /// not fit. Kept while the window stays pinned, however often it is adjusted after.
+    private var corrections: Set<WindowID> = []
 
     public init(clock: any TimeSource) {
         self.clock = clock
@@ -54,6 +59,10 @@ import DeskmanPorts
                                     abs(w.frame.maxX - before.maxX), abs(w.frame.maxY - before.maxY)))
                 let r = { (f: Rect) in "\(Int(f.x)),\(Int(f.y)) \(Int(f.width))×\(Int(f.height))" }
                 let deskman = deskmanTarget[w.id].map { "; Deskman last put it at \(r($0))" } ?? "; Deskman had not moved it"
+                let resized = abs(w.frame.width - before.width) > Self.threshold
+                    || abs(w.frame.height - before.height) > Self.threshold
+                if let at = placedAt[w.id], !Self.changed(at, before), resized { corrections.insert(w.id) }
+                if let at = placedAt[w.id], Self.changed(at, w.frame) { placedAt[w.id] = nil }
                 decisions?.record("Pinned \(w.app) \"\(w.title.prefix(40))\" [\(w.id.raw.prefix(8))]: it moved \(moved) pt, "
                                   + "\(r(before)) → \(r(w.frame))\(deskman). Smart Arrange keeps it where it is for 30 minutes, or until Unpin All.")
                 intents[w.id] = (now, w.app)
@@ -72,6 +81,8 @@ import DeskmanPorts
         deskmanTarget[id] = frame
         if let before = last[id] { deskmanFrom[id] = (clock.now(), before) }
         intents[id] = nil
+        placedAt[id] = frame
+        corrections.remove(id)
     }
 
     /// The person chose this place (a snap hotkey, a drag onto a zone), even though
@@ -87,12 +98,18 @@ import DeskmanPorts
     /// Forget every pin: Smart Arrange may move every window again.
     public func unpinAll() {
         intents = [:]
+        corrections = []
     }
 
     /// Windows the person placed in the last 30 minutes.
     public func pinned() -> Set<WindowID> {
         let now = clock.now()
         return Set(intents.filter { now - $0.value.time < Self.pinSeconds }.keys)
+    }
+
+    /// Pinned windows the person resized from where Deskman or a snap put them.
+    public func corrected() -> Set<WindowID> {
+        corrections.intersection(pinned())
     }
 
     /// Windows that sit where Deskman put them.

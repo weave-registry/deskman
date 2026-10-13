@@ -71,3 +71,27 @@
 - Tests, written first: `aTitleChangeIsNotASecondMove`, `todaysMovesAreFourNotFive` (the records of
   12:18–12:50), `movesOnOneSideKeepTheEdgesOfTheOther`, `aFullHeightMoveAcrossASplitRemovesIt`. Each
   rule was broken on purpose; the test written for it failed.
+
+## Amendment 2026-10-13 — learn from the grid in use; a resize of a placed window is a correction
+
+- From 13:40 to 14:00 the grid changed from 2·1·2 to 1·2, because the person used it. Windows placed in
+  the learned 33% zones span the standard grid's 25% edge, and each counted one against it; the 33%
+  edge had two moves, one short of counting. The edge died with nothing in its place. Learning started
+  from the standard grid every time, so using the learned grid erased it.
+- The user chose: learn from the grid in use. And, mid-change: "we need to be sensitive to reconfigure
+  the zones if we sense the user needs to adjust the window sizes." 13:56–14:02: the person resized
+  Firefox more than six times right after Deskman put it in a zone.
+- Decision:
+  1. **The grid in use is where learning starts**, in place of the standard grid: its equal edges count as
+     `minimumSupport` moves, older than any real one. A snap into a learned zone supports its edges.
+  2. **The grid in use is stored**: `Preferences.gridShapes`, by display index. A restart keeps it.
+     Forget My Activity clears it, with the records it was learned from. This reverses "nothing new is
+     stored" for this one value: without it a restart learns from the standard grid again.
+  3. **A correction counts as `minimumSupport` moves.** A correction is a resize by hand of a window that
+     sat where Deskman or a snap had put it: `WindowRecord.corrected`, from `IntentLog.corrected()`. One
+     correction can move an edge or add one. A plain move counts once, as before.
+  4. With fewer than 5 moves the standard grid is used, and the stored shape is cleared.
+- Gate: `scripts/gate.sh`, tests first: today's eight moves from the grid in use give 2·1·2; from the
+  standard grid they give 1·2 (the incident); one correction adds a column, one plain move does not; a
+  resize after Deskman's placement or a snap is a correction, a plain move is not; the shape survives a
+  restart; Forget My Activity clears it; old records and old preferences still read.

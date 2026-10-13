@@ -23,7 +23,11 @@ import DeskmanPorts
     public func relearn(displays: [Display]) {
         let records = history.snapshots()
         for d in displays {
-            let now = GridLearner.learn(from: records, on: d, now: clock.now(), ignoring: ignored)
+            let now = GridLearner.learn(from: records, on: d, now: clock.now(), ignoring: ignored,
+                                        inUse: settings?.gridShape(on: d.index) ?? learned[d.index]??.shape)
+            if let saved = settings?.setGridShape(now?.shape, on: d.index), !saved.succeeded {
+                decisions?.record("Could not keep the grid in use for the next start:\(saved.message)")
+            }
             let before = learned[d.index]
             learned[d.index] = .some(now)
             guard before == nil ? now != nil : before! != now else { continue }
@@ -42,6 +46,14 @@ import DeskmanPorts
 
     public func zones(on display: Display) -> [Rect] {
         ZoneGenerator.snapZones(on: display, shape: shape(on: display))
+    }
+
+    /// Forget My Activity: the grid goes with the records it was learned from.
+    public func forget() {
+        if let cleared = settings?.clearGridShapes(), !cleared.succeeded {
+            decisions?.record("Could not forget the grid in use:\(cleared.message)")
+        }
+        learned = [:]
     }
 
     private func ignored(_ app: String) -> Bool { settings?.isFloating(app) ?? false }

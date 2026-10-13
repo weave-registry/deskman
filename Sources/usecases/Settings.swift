@@ -73,6 +73,21 @@ import DeskmanPorts
                        : "Keep Arranged is off.")
     }
 
+    /// The learned grid in use on a display (ADR-2610131157), or nil for the standard grid.
+    public func gridShape(on display: Int) -> GridShape? { current.gridShapes[String(display)] }
+
+    func setGridShape(_ shape: GridShape?, on display: Int) -> CommandOutcome {
+        guard current.gridShapes[String(display)] != shape else { return .ok("") }
+        current.gridShapes[String(display)] = shape
+        return save("")
+    }
+
+    func clearGridShapes() -> CommandOutcome {
+        guard !current.gridShapes.isEmpty else { return .ok("") }
+        current.gridShapes = [:]
+        return save("")
+    }
+
     public var dragSnap: Bool { current.dragSnap }
 
     public func setDragSnap(_ on: Bool) -> CommandOutcome {

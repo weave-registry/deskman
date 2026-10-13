@@ -116,11 +116,15 @@ The drawing above is the **standard grid**. Deskman replaces it with your own, l
 1. Only your moves count: a drag, a resize, a snap key. A place Deskman chose teaches nothing.
    Nor does a window smaller than a zone (a widget), or an app Deskman leaves alone.
 2. Deskman learns the **shape**: how many columns, and how many zones each column stacks.
-   It starts from the standard grid. Your moves replace the edges they land near, and a window
-   across an edge counts against it. An edge you never moved stays. One app in one place counts once.
+   It starts from the grid in use (the standard grid at first). Your moves replace the edges they
+   land near, and a window across an edge counts against it. An edge you never moved stays.
+   One app in one place counts once.
+   **A correction counts as three moves.** If you resize a window right where Deskman or a snap put
+   it, the zone did not fit you, and one such resize can move an edge or add a column.
 3. It makes the zones equal. Every column gets the same width. The zones in a column get the same height.
 4. It needs 5 of your moves from the last 14 days. One window in one place counts once.
 5. A shape too fine for the display loses its weakest edges, so no zone is under 700 × 400 pt.
+6. The grid in use is kept in `preferences.json`, so a restart keeps it. Forget My Activity clears it.
 
 For example, your 25% | 50% | 25% grid with stacked sides becomes three equal columns of 33%,
 with the sides still split in two. The hotkeys, drag-to-snap, Smart Arrange and On Screen all use
@@ -240,11 +244,11 @@ Each refusal is written to the decision log with its reason.
 |---|---|
 | `~/Library/Application Support/Deskman/activity.jsonl` | Your settled arrangements, one per line (at most 5,000, at most 90 days old) |
 | `~/Library/Application Support/Deskman/trust.json` | How often you accepted each habit |
-| `~/Library/Application Support/Deskman/preferences.json` | Your switches, the apps left alone, bound and declined projects |
+| `~/Library/Application Support/Deskman/preferences.json` | Your switches, the apps left alone, bound and declined projects, the grid in use |
 | `~/Library/Logs/Deskman/decisions.log` | The decision log, kept under 5 MB |
 
 The records hold window titles, so the folder and its files are owner-only.
-**Forget My Activity** erases the activity and trust files. It keeps your preferences.
+**Forget My Activity** erases the activity and trust files, and the learned grid. It keeps your other preferences.
 Every window text passes through `EnglishOnly` before it goes into a prompt.
 
 ## Why did it do that? The decision log

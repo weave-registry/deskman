@@ -60,6 +60,11 @@ public enum GridLearner {
 
     /// The shape the person's moves on `display` describe, or nil: too few moves, or one zone.
     /// `ignoring`: apps Deskman leaves alone (ADR-2610120742); their places are not the grid.
+    ///
+    /// The standard grid is where it starts: each of its edges counts as `minimumSupport` moves,
+    /// older than any real one. A move of the person's replaces an edge it lands near (the one used
+    /// last wins) and counts against an edge it spans. An edge nobody moved stays (2026-10-13: five
+    /// moves on the middle and the right merged the left column into the middle).
     public static func learn(from history: [DeskSnapshot], on display: Display, now: Double,
                              ignoring: (String) -> Bool = { _ in false }) -> Learned? {
         let evidence = self.evidence(history, on: display, now: now, ignoring: ignoring)
@@ -68,12 +73,23 @@ public enum GridLearner {
         let v = display.visibleFrame
         let maxColumns = max(1, Int(v.width / ZonePlanner.minimumWidth))
         let maxRows = max(1, Int(v.height / ZonePlanner.minimumHeight))
+        // The standard grid, as fractions of the visible frame.
+        let standard = ZoneGenerator.snapZones(on: display).map {
+            Rect(x: ($0.x - v.x) / v.width, y: ($0.y - v.y) / v.height, width: $0.width / v.width, height: $0.height / v.height)
+        }
 
-        let cuts = boundaries(evidence.flatMap { e in [(e.rect.x, e.time), (e.rect.maxX, e.time)] }, limit: maxColumns - 1)
+        let cuts = boundaries(evidence.flatMap { e in [(e.rect.x, e.time), (e.rect.maxX, e.time)] },
+                              prior: standard.flatMap { [$0.x, $0.maxX] },
+                              spans: evidence.map { ($0.rect.x, $0.rect.maxX) }, limit: maxColumns - 1)
         let columns = zip([0.0] + cuts, cuts + [1.0]).map { (lo: $0, hi: $1) }
         let rows = columns.map { c -> Int in
             let inside = evidence.filter { $0.rect.x >= c.lo - sameEdge && $0.rect.maxX <= c.hi + sameEdge }
-            return boundaries(inside.flatMap { e in [(e.rect.y, e.time), (e.rect.maxY, e.time)] }, limit: maxRows - 1).count + 1
+            // The standard rows of the standard column under this column's center.
+            let center = (c.lo + c.hi) / 2
+            let under = standard.filter { $0.x <= center && center < $0.maxX }
+            return boundaries(inside.flatMap { e in [(e.rect.y, e.time), (e.rect.maxY, e.time)] },
+                              prior: under.flatMap { [$0.y, $0.maxY] },
+                              spans: inside.map { ($0.rect.y, $0.rect.maxY) }, limit: maxRows - 1).count + 1
         }
         guard rows.reduce(0, +) > 1 else { return nil }
         return Learned(shape: GridShape(rows: rows), placements: evidence.count)
@@ -85,7 +101,8 @@ public enum GridLearner {
         evidence(history, on: display, now: now, ignoring: ignoring).count
     }
 
-    /// The person's placements: one window in one place counts once, at the last time it was seen there.
+    /// The person's placements. One app in one place counts once, at the last time it was there:
+    /// a window whose title changes is not a second move (Slack, 2026-10-13).
     static func evidence(_ history: [DeskSnapshot], on display: Display, now: Double,
                          ignoring: (String) -> Bool) -> [(rect: Rect, time: Double)] {
         let v = display.visibleFrame
@@ -96,24 +113,37 @@ public enum GridLearner {
             for w in s.windows where w.byPerson == true && !w.isMinimized && w.placement.display == display.index
                 && !ignoring(w.app) && bigEnough(w.placement.rect) {
                 let r = w.placement.rect
-                let key = "\(w.app)\u{0}\(w.title)\u{0}\(r.x),\(r.y),\(r.width),\(r.height)"
+                let key = "\(w.app)\u{0}\(r.x),\(r.y),\(r.width),\(r.height)"
                 if (latest[key]?.time ?? -.infinity) < s.time { latest[key] = (r, s.time) }
             }
         }
         return Array(latest.values)
     }
 
-    /// The inner boundaries the edges describe, sorted, at most `limit` of them.
-    /// `edges`: a position (0…1) and when it was last used.
-    static func boundaries(_ edges: [(Double, Double)], limit: Int) -> [Double] {
+    /// The inner boundaries, sorted, at most `limit` of them. `edges`: the person's, each a
+    /// position (0…1) and when it was last used. `prior`: the standard grid's, older than any.
+    /// `spans`: the person's placements, from edge to edge; one that spans a boundary counts against it.
+    static func boundaries(_ edges: [(Double, Double)], prior: [Double], spans: [(Double, Double)],
+                           limit: Int) -> [Double] {
+        let inner = { (x: Double) in x > frameEdge && x < 1 - frameEdge }
         // Groups of edges within `sameEdge` of the group's first edge.
         var groups: [(at: Double, support: Int, last: Double)] = []
-        for (x, t) in edges.filter({ $0.0 > frameEdge && $0.0 < 1 - frameEdge }).sorted(by: { $0.0 < $1.0 }) {
+        for (x, t) in edges.filter({ inner($0.0) }).sorted(by: { $0.0 < $1.0 }) {
             if let g = groups.last, x - g.at <= sameEdge {
                 groups[groups.count - 1] = (g.at, g.support + 1, max(g.last, t))
             } else {
                 groups.append((x, 1, t))
             }
+        }
+        for p in Set(prior.filter(inner)) {
+            if let i = groups.firstIndex(where: { abs($0.at - p) <= sameEdge }) {
+                groups[i].support += minimumSupport
+            } else {
+                groups.append((p, minimumSupport, -.infinity))
+            }
+        }
+        for i in groups.indices {
+            groups[i].support -= spans.filter { $0.0 < groups[i].at - sameEdge && $0.1 > groups[i].at + sameEdge }.count
         }
         // The one used last wins a boundary; then the better supported; then the one further left.
         var kept: [(at: Double, support: Int, last: Double)] = []

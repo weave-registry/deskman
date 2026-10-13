@@ -53,3 +53,21 @@
   moves. Tests: `aWindowSmallerThanAZoneTeachesNothing`, `anAppDeskmanLeavesAloneTeachesNothing`.
 - Known: `WindowRecord` equality now includes `byPerson`, so a pin that expires after 30 minutes
   starts a new settle and one more record. Harmless; it is the same place.
+
+## Amendment 2026-10-13 — the standard grid is where learning starts
+
+- At 12:50 Deskman learned "2 equal columns of 1 and 2 zones" from five moves, all of which fit the
+  standard grid: Zoom in the middle; iTerm2, Zoom and Slack in the right column. Nothing was placed in
+  the left 25%, so no edge was seen there and the left column merged into the middle. The snap keys
+  changed with it. The user chose to fix the learner.
+- Two causes, two rules:
+  - **One app in one place counts once.** The key was app, title and place; Slack changed its title
+    ("glenturner (DM)" → "Threads") in one place and counted twice. Today's moves are four, not five.
+  - **The standard grid is where it starts.** Each of its edges counts as `minimumSupport` moves, older
+    than any real move. A move of the person's within 10% replaces it (the one used last wins), and a
+    move that spans an edge counts one against it. An edge nobody moved stays.
+- With today's moves and one more on the right, the shape is 2, 1, 2: the person's own, made equal.
+  Full-height moves in each third remove the side splits: 1, 1, 1.
+- Tests, written first: `aTitleChangeIsNotASecondMove`, `todaysMovesAreFourNotFive` (the records of
+  12:18–12:50), `movesOnOneSideKeepTheEdgesOfTheOther`, `aFullHeightMoveAcrossASplitRemovesIt`. Each
+  rule was broken on purpose; the test written for it failed.

@@ -116,6 +116,8 @@ The drawing above is the **standard grid**. Deskman replaces it with your own, l
 1. Only your moves count: a drag, a resize, a snap key. A place Deskman chose teaches nothing.
    Nor does a window smaller than a zone (a widget), or an app Deskman leaves alone.
 2. Deskman learns the **shape**: how many columns, and how many zones each column stacks.
+   It starts from the standard grid. Your moves replace the edges they land near, and a window
+   across an edge counts against it. An edge you never moved stays. One app in one place counts once.
 3. It makes the zones equal. Every column gets the same width. The zones in a column get the same height.
 4. It needs 5 of your moves from the last 14 days. One window in one place counts once.
 5. A shape too fine for the display loses its weakest edges, so no zone is under 700 × 400 pt.

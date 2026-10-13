@@ -18,10 +18,11 @@ private let standard: [Rect] = [
 private let thirds: [Rect] = (0..<3).map { Rect(x: Double($0) / 3, y: 0, width: 1.0 / 3, height: 1) }
 
 /// One settled record with a window at each place, all placed by the person unless `byPerson` is false.
+/// Each window is its own app: one app in one place counts once.
 private func record(_ time: Double, _ places: [Rect], tag: String, on display: Display = wide,
                     byPerson: Bool = true) -> DeskSnapshot {
     let windows = places.enumerated().map { i, r in
-        WindowSnapshot(id: WindowID("\(tag)\(i)"), app: "App\(i)", title: "\(tag) \(i)",
+        WindowSnapshot(id: WindowID("\(tag)\(i)"), app: "App\(i)-\(tag)", title: "\(tag) \(i)",
                        frame: Placement(display: display.index, rect: r).frame(on: display), isMinimized: false)
     }
     return DeskSnapshot(time: time, windows: windows, displays: [display], focusedApp: nil,
@@ -89,16 +90,58 @@ private func moves(_ time: Double, _ places: [Rect], on display: Display = wide)
     }
 
     @Test func anAppDeskmanLeavesAloneTeachesNothing() {
-        // `record` names the apps App0…App4, one per place; App2 holds the middle.
+        // `record` names the apps App0-…App4-…, by place; App2 holds the middle.
         let history = moves(0, standard)
-        #expect(GridLearner.learn(from: history, on: wide, now: 10, ignoring: { $0 == "App2" })?.placements == 12)
-        #expect(GridLearner.placements(in: history, on: wide, now: 10, ignoring: { $0 == "App2" }) == 12)
+        let middle = { (app: String) in app.hasPrefix("App2-") }
+        #expect(GridLearner.learn(from: history, on: wide, now: 10, ignoring: middle)?.placements == 12)
+        #expect(GridLearner.placements(in: history, on: wide, now: 10, ignoring: middle) == 12)
+    }
+
+    @Test func aTitleChangeIsNotASecondMove() {
+        // 2026-10-13: Slack went from "glenturner (DM)" to "Threads" in one place and counted twice.
+        let place = Rect(x: 0.75, y: 0.5, width: 0.25, height: 0.5)
+        let history = [placed(0, "Slack", "glenturner (DM)", place), placed(1, "Slack", "Threads", place)]
+        #expect(GridLearner.placements(in: history, on: wide, now: 2) == 1)
+    }
+
+    /// The person's five moves of 2026-10-13, 12:18–12:50, as Deskman recorded them.
+    static let today: [DeskSnapshot] = [
+        placed(0, "Zoom", "Zoom Meeting", Rect(x: 0.75, y: 0.5, width: 0.25, height: 0.567)),
+        placed(1, "iTerm2", "tuios", Rect(x: 0.75, y: 0, width: 0.25, height: 0.5)),
+        placed(2, "Zoom", "Zoom Meeting", Rect(x: 0.25, y: 0, width: 0.5, height: 1)),
+        placed(3, "Slack", "glenturner (DM)", Rect(x: 0.75, y: 0.5, width: 0.25, height: 0.5)),
+        placed(4, "Slack", "Threads", Rect(x: 0.75, y: 0.5, width: 0.25, height: 0.5)),
+    ]
+
+    @Test func todaysMovesAreFourNotFive() {
+        #expect(GridLearner.placements(in: Self.today, on: wide, now: 10) == 4)
+        #expect(GridLearner.learn(from: Self.today, on: wide, now: 10) == nil)
+    }
+
+    @Test func movesOnOneSideKeepTheEdgesOfTheOther() {
+        // Today's moves are all on the middle and the right. The left edge, at 25%, was never moved:
+        // it stays, and the grid keeps its shape (it learned two columns, 2026-10-13).
+        let history = Self.today + [placed(5, "Mail", "Inbox", Rect(x: 0.75, y: 0, width: 0.25, height: 1))]
+        #expect(GridLearner.learn(from: history, on: wide, now: 10)?.shape == GridShape(rows: [2, 1, 2]))
+    }
+
+    @Test func aFullHeightMoveAcrossASplitRemovesIt() {
+        // Full-height windows in each third: the side columns are no longer split.
+        let learned = GridLearner.learn(from: moves(0, thirds), on: wide, now: 10)
+        #expect(learned?.shape == GridShape(rows: [1, 1, 1]), "\(String(describing: learned))")
     }
 
     @Test func anotherDisplaysMovesTeachThisOneNothing() {
         let second = Display(index: 1, visibleFrame: Rect(x: 5120, y: 0, width: 2560, height: 1440))
         #expect(GridLearner.learn(from: moves(0, standard, on: second), on: wide, now: 10) == nil)
     }
+}
+
+/// One window the person placed, in a record of its own.
+private func placed(_ time: Double, _ app: String, _ title: String, _ rect: Rect) -> DeskSnapshot {
+    let w = WindowSnapshot(id: WindowID("\(app)\(time)"), app: app, title: title,
+                           frame: Placement(display: 0, rect: rect).frame(on: wide), isMinimized: false)
+    return DeskSnapshot(time: time, windows: [w], displays: [wide], focusedApp: nil, placedByPerson: [w.id])
 }
 
 @Suite struct EqualGridTests {

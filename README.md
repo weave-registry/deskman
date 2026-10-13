@@ -114,6 +114,7 @@ The drawing above is the **standard grid**. Deskman replaces it with your own, l
 *you* place windows, and then makes its zones equal.
 
 1. Only your moves count: a drag, a resize, a snap key. A place Deskman chose teaches nothing.
+   Nor does a window smaller than a zone (a widget), or an app Deskman leaves alone.
 2. Deskman learns the **shape**: how many columns, and how many zones each column stacks.
 3. It makes the zones equal. Every column gets the same width. The zones in a column get the same height.
 4. It needs 5 of your moves from the last 14 days. One window in one place counts once.

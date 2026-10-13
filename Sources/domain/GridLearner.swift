@@ -52,12 +52,17 @@ public enum GridLearner {
     /// Edges closer than this are one boundary: the one used last wins. It stops an equal grid
     /// from feeding itself (25% edges from before, 33% edges since).
     static let oneBoundary = 0.10
+    /// A window smaller than this share of the smallest zone is a widget, not a place in the grid
+    /// (Plaud, 320 × 196 pt, 2026-10-13). The share allows for the 1/60 rounding of a placement.
+    static let zoneShare = 0.9
     /// A display's own edge, give or take the 1/60 rounding of a placement.
     static let frameEdge = 1.0 / 60 + 1e-9
 
     /// The shape the person's moves on `display` describe, or nil: too few moves, or one zone.
-    public static func learn(from history: [DeskSnapshot], on display: Display, now: Double) -> Learned? {
-        let evidence = self.evidence(history, on: display, now: now)
+    /// `ignoring`: apps Deskman leaves alone (ADR-2610120742); their places are not the grid.
+    public static func learn(from history: [DeskSnapshot], on display: Display, now: Double,
+                             ignoring: (String) -> Bool = { _ in false }) -> Learned? {
+        let evidence = self.evidence(history, on: display, now: now, ignoring: ignoring)
         guard evidence.count >= minimumPlacements else { return nil }
 
         let v = display.visibleFrame
@@ -75,15 +80,21 @@ public enum GridLearner {
     }
 
     /// How many of the person's placements on `display` count now: progress toward `minimumPlacements`.
-    public static func placements(in history: [DeskSnapshot], on display: Display, now: Double) -> Int {
-        evidence(history, on: display, now: now).count
+    public static func placements(in history: [DeskSnapshot], on display: Display, now: Double,
+                                  ignoring: (String) -> Bool = { _ in false }) -> Int {
+        evidence(history, on: display, now: now, ignoring: ignoring).count
     }
 
     /// The person's placements: one window in one place counts once, at the last time it was seen there.
-    static func evidence(_ history: [DeskSnapshot], on display: Display, now: Double) -> [(rect: Rect, time: Double)] {
+    static func evidence(_ history: [DeskSnapshot], on display: Display, now: Double,
+                         ignoring: (String) -> Bool) -> [(rect: Rect, time: Double)] {
+        let v = display.visibleFrame
+        let bigEnough = { (r: Rect) in r.width * v.width >= zoneShare * ZonePlanner.minimumWidth
+            && r.height * v.height >= zoneShare * ZonePlanner.minimumHeight }
         var latest: [String: (rect: Rect, time: Double)] = [:]
         for s in history where now - s.time <= memorySeconds {
-            for w in s.windows where w.byPerson == true && !w.isMinimized && w.placement.display == display.index {
+            for w in s.windows where w.byPerson == true && !w.isMinimized && w.placement.display == display.index
+                && !ignoring(w.app) && bigEnough(w.placement.rect) {
                 let r = w.placement.rect
                 let key = "\(w.app)\u{0}\(w.title)\u{0}\(r.x),\(r.y),\(r.width),\(r.height)"
                 if (latest[key]?.time ?? -.infinity) < s.time { latest[key] = (r, s.time) }

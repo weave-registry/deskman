@@ -72,12 +72,27 @@ private func moves(_ time: Double, _ places: [Rect], on display: Display = wide)
 
     @Test func aShapeTooFineForTheDisplayLosesItsWeakestEdges() {
         let laptop = Display(index: 0, visibleFrame: Rect(x: 0, y: 25, width: 1440, height: 875))
-        let quarters = (0..<4).map { Rect(x: Double($0) / 4, y: 0, width: 0.25, height: 1) }
-        let learned = GridLearner.learn(from: moves(0, quarters, on: laptop), on: laptop, now: 10)
+        // Halves that overlap, each 720 pt wide, so each counts: their edges are at 25%, 50% and 75%.
+        let halves = (0..<3).map { Rect(x: Double($0) / 4, y: 0, width: 0.5, height: 1) }
+        let learned = GridLearner.learn(from: moves(0, halves, on: laptop), on: laptop, now: 10)
         #expect(learned?.shape.rows.count == 2)
         for z in ZoneGenerator.snapZones(on: laptop, shape: learned?.shape) {
             #expect(z.width >= ZonePlanner.minimumWidth && z.height >= ZonePlanner.minimumHeight, "\(z)")
         }
+    }
+
+    @Test func aWindowSmallerThanAZoneTeachesNothing() {
+        // 2026-10-13: Plaud, a 320 × 196 pt widget, counted as one of the person's five moves.
+        let widgets = (0..<6).map { Rect(x: 0.9, y: Double($0) / 10, width: 0.06, height: 0.1) }
+        #expect(GridLearner.placements(in: moves(0, widgets), on: wide, now: 10) == 0)
+        #expect(GridLearner.learn(from: moves(0, standard + widgets), on: wide, now: 10)?.placements == 15)
+    }
+
+    @Test func anAppDeskmanLeavesAloneTeachesNothing() {
+        // `record` names the apps App0…App4, one per place; App2 holds the middle.
+        let history = moves(0, standard)
+        #expect(GridLearner.learn(from: history, on: wide, now: 10, ignoring: { $0 == "App2" })?.placements == 12)
+        #expect(GridLearner.placements(in: history, on: wide, now: 10, ignoring: { $0 == "App2" }) == 12)
     }
 
     @Test func anotherDisplaysMovesTeachThisOneNothing() {

@@ -6,12 +6,15 @@ import DeskmanPorts
 @MainActor public final class LearnedGrid {
     private let history: any ActivityStore
     private let clock: any TimeSource
+    /// Apps Deskman leaves alone teach no grid (ADR-2610120742).
+    private let settings: Settings?
     /// Where a change of shape is explained. Set by the composition root.
     public var decisions: (any DecisionLog)?
     /// By display index. A display not here has not been learned yet.
     private var learned: [Int: GridLearner.Learned?] = [:]
 
-    public init(history: any ActivityStore, clock: any TimeSource) {
+    public init(history: any ActivityStore, clock: any TimeSource, settings: Settings? = nil) {
+        self.settings = settings
         self.history = history
         self.clock = clock
     }
@@ -20,7 +23,7 @@ import DeskmanPorts
     public func relearn(displays: [Display]) {
         let records = history.snapshots()
         for d in displays {
-            let now = GridLearner.learn(from: records, on: d, now: clock.now())
+            let now = GridLearner.learn(from: records, on: d, now: clock.now(), ignoring: ignored)
             let before = learned[d.index]
             learned[d.index] = .some(now)
             guard before == nil ? now != nil : before! != now else { continue }
@@ -41,13 +44,15 @@ import DeskmanPorts
         ZoneGenerator.snapZones(on: display, shape: shape(on: display))
     }
 
+    private func ignored(_ app: String) -> Bool { settings?.isFloating(app) ?? false }
+
     /// In words, for What Deskman Knows.
     public func describe(on display: Display) -> String {
         if learned[display.index] == nil { relearn(displays: [display]) }
         if let l = learned[display.index] ?? nil {
             return "Learned from \(l.placements) of your moves: \(l.shape.phrase)."
         }
-        let n = GridLearner.placements(in: history.snapshots(), on: display, now: clock.now())
+        let n = GridLearner.placements(in: history.snapshots(), on: display, now: clock.now(), ignoring: ignored)
         return "Standard grid. Yours is learned after \(GridLearner.minimumPlacements) of your moves (\(n) so far)."
     }
 }

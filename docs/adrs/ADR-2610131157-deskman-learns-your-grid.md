@@ -48,5 +48,8 @@
   its own. A last section sat two screens below the habits in a list with no scroll bar.
 - The standard-grid line counts progress: "Standard grid. Yours is learned after 5 of your moves (0 so far)."
 - `GridPlanner.label` names a whole column of any height ("zones 1+2+3"); before, only two.
+- Not evidence (amendment, 2026-10-13): a window smaller than 90% of the smallest zone (700 × 400 pt),
+  and an app Deskman leaves alone. Plaud, a 320 × 196 pt widget, was one of the person's first three
+  moves. Tests: `aWindowSmallerThanAZoneTeachesNothing`, `anAppDeskmanLeavesAloneTeachesNothing`.
 - Known: `WindowRecord` equality now includes `byPerson`, so a pin that expires after 30 minutes
   starts a new settle and one more record. Harmless; it is the same place.

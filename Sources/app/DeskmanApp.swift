@@ -55,7 +55,7 @@ import DeskmanUI
         let bindings = BindingService(control: control, names: names, settings: preferences)
         self.bindings = bindings
         // The person's grid, learned from their own moves and made equal (ADR-2610131157).
-        let grid = LearnedGrid(history: store, clock: clock)
+        let grid = LearnedGrid(history: store, clock: clock, settings: preferences)
         grid.decisions = decisions
         let arranger = SmartArranger(control: control, history: store, focus: focus, intents: intents,
                                  settings: preferences, bindings: bindings, grid: grid)

@@ -60,6 +60,9 @@ scripts/build-app.sh               # builds build/Deskman.app
 open build/Deskman.app
 ```
 
+To update later: `scripts/update.sh`. It pulls the latest code, runs the gate, rebuilds, and restarts Deskman.
+There is no automatic updater.
+
 1. Deskman opens a floating panel and puts an icon in the menu bar.
 2. Click **Allow…** in the panel.
 3. Turn on Deskman in System Settings → Privacy & Security → Accessibility.

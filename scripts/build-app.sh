@@ -5,6 +5,9 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 CONFIG=${CONFIG:-release}
+# The release version: bump both when cutting a release (CFBundleVersion counts releases).
+VERSION=0.2.0
+BUILD=2
 swift build -c "$CONFIG" --explicit-target-dependency-import-check error
 BIN="$(swift build -c "$CONFIG" --show-bin-path)/Deskman"
 
@@ -23,8 +26,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundleIdentifier</key><string>${BUNDLE_ID:-dev.deskman.app}</string>
     <key>CFBundleExecutable</key><string>Deskman</string>
     <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>0.1.0</string>
-    <key>CFBundleVersion</key><string>1</string>
+    <key>CFBundleShortVersionString</key><string>${VERSION}</string>
+    <key>CFBundleVersion</key><string>${BUILD}</string>
     <key>LSMinimumSystemVersion</key><string>26.0</string>
     <key>LSUIElement</key><true/>
     <key>NSHighResolutionCapable</key><true/>
@@ -42,4 +45,4 @@ if ! security find-certificate -c "$IDENTITY" >/dev/null 2>&1; then
 fi
 codesign --force --sign "$IDENTITY" --identifier "${BUNDLE_ID:-dev.deskman.app}" "$APP"
 codesign --verify "$APP"
-echo "Built $APP"
+echo "Built $APP $VERSION ($BUILD)"

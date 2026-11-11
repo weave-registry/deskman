@@ -1,8 +1,9 @@
 // The green button puts a window back in its zone (ADR-2611111100). Top-left origin, y down.
 
 public enum ZoneReturn {
-    /// A window this close to a place, on every edge, sits in it: apps settle a few points off (iTerm2's text cells).
-    public static let tolerance = 32.0
+    /// A window this close to a place, on every edge, sits in it: apps settle off it (iTerm2 rounds to whole text
+    /// lines: 35 pt short on the user's desktop, 2026-11-11). The same allowance as `IntentLog.settle`.
+    public static let tolerance = 48.0
     /// A window covers another when they share more than this share of the smaller one.
     public static let coverShare = 0.1
 

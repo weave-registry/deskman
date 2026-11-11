@@ -55,6 +55,9 @@ struct FakeError: Error, CustomStringConvertible {
     /// Where each window's green title-bar button is (ADR-2611111100).
     var greenButtons: [WindowID: Rect] = [:]
     func greenButtonFrame(of id: WindowID) -> Rect? { greenButtons[id] }
+    /// The window server's order and frames now; nil, as a control that cannot say.
+    var onScreen: [(WindowID, Rect)]?
+    func onScreenNow() -> [(id: WindowID, frame: Rect)]? { onScreen.map { $0.map { (id: $0.0, frame: $0.1) } } }
     /// Windows that stay where they are, though the move "succeeds".
     var immovable: Set<WindowID> = []
     /// Windows whose app will not go narrower than this.

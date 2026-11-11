@@ -168,6 +168,18 @@ import DeskmanPorts
         return Self.frame(of: button)
     }
 
+    /// The window server's word, now: one call, about a millisecond, no Accessibility (2026-11-11).
+    public func onScreenNow() -> [(id: WindowID, frame: Rect)]? {
+        guard let info = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
+            as? [[String: Any]] else { return nil }
+        return info.compactMap { entry in
+            guard (entry[kCGWindowLayer as String] as? Int) == 0,
+                  let number = (entry[kCGWindowNumber as String] as? NSNumber)?.uint32Value,
+                  let frame = DesktopRead.bounds(entry) else { return nil }
+            return (WindowID("w\(number)"), frame)
+        }
+    }
+
     public func displays() -> [Display] {
         let screens = NSScreen.screens
         guard let primary = screens.first else { return [] }

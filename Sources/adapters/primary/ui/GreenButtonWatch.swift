@@ -55,6 +55,8 @@ import DeskmanPorts
             return false
         case .leftMouseDown:
             claimed = nil
+            // A click can change which window is in front: no ring stays where it may now be wrong.
+            rings.show([])
             // Option-click is macOS's zoom; a double click is the title bar's. Both stay macOS's.
             guard !event.flags.contains(.maskAlternate), event.getIntegerValueField(.mouseEventClickState) <= 1 else {
                 return false

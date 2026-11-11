@@ -29,6 +29,9 @@
     func acting<T>(for origin: ActionOrigin, _ body: () throws -> T) rethrows -> T
     /// Where the window's green title-bar button is now (ADR-2611111100). Nil without one, or in native full screen.
     func greenButtonFrame(of id: WindowID) -> Rect?
+    /// The windows on screen at this moment, front to back, with their frames now: fresh, where `windows()` may be
+    /// a second old and in an order a click has changed since. Nil when the control cannot say.
+    func onScreenNow() -> [(id: WindowID, frame: Rect)]?
 }
 
 extension WindowControl {
@@ -40,6 +43,9 @@ extension WindowControl {
 
     /// A control that cannot see title-bar buttons has none to report.
     public func greenButtonFrame(of id: WindowID) -> Rect? { nil }
+
+    /// A control whose list is never stale: the visible windows, in its order.
+    public func onScreenNow() -> [(id: WindowID, frame: Rect)]? { nil }
 }
 
 /// Names windows by what they are for (ADR-2610101542). Slow; never in a command's path.

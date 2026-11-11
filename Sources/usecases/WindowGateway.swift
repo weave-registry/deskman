@@ -62,6 +62,7 @@ public struct GatewayRefusal: Error, CustomStringConvertible, Sendable {
     public func frame(of id: WindowID) -> Rect? { inner.frame(of: id) }
     public func launch(app: String) throws { try inner.launch(app: app) }
     public func greenButtonFrame(of id: WindowID) -> Rect? { inner.greenButtonFrame(of: id) }
+    public func onScreenNow() -> [(id: WindowID, frame: Rect)]? { inner.onScreenNow() }
     public var isTrusted: Bool { inner.isTrusted }
     public func requestTrust() { inner.requestTrust() }
 }

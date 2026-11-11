@@ -213,6 +213,7 @@ import DeskmanPorts
     public func perform(_ action: WindowAction, on id: WindowID) throws { try inner.perform(action, on: id) }
     public func launch(app: String) throws { try inner.launch(app: app) }
     public func greenButtonFrame(of id: WindowID) -> Rect? { inner.greenButtonFrame(of: id) }
+    public func onScreenNow() -> [(id: WindowID, frame: Rect)]? { inner.onScreenNow() }
     public var isTrusted: Bool { inner.isTrusted }
     public func requestTrust() { inner.requestTrust() }
     public func acting<T>(for origin: ActionOrigin, _ body: () throws -> T) rethrows -> T {

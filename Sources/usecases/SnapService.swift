@@ -111,18 +111,19 @@ import DeskmanPorts
     public func greenButtonClaim(at point: Point) -> WindowID? {
         guard settings?.greenButton ?? true else { return nil }
         let all = control.windows()
-        // Front to back: the click is the front window's. Cheap tests first; this runs while the click waits.
-        guard let under = all.first(where: { $0.isVisible && $0.frame.contains(point) }),
-              point.x - under.frame.minX < Self.buttonCorner.width, point.y - under.frame.minY < Self.buttonCorner.height,
-              !(settings?.isFloating(under.app) ?? false), !MeetingApps.contains(under.app),
-              !MeetingApps.inMeeting(all) else { return nil }
-        // The button first: its read gives up fast on an app that does not answer, so a hung app cannot hold the click.
-        guard let button = control.greenButtonFrame(of: under.id), button.contains(point) else { return nil }
-        // The list may be a second old (ADR-2610121200): judge the window by its frame now.
-        let fresh = control.frame(of: under.id) ?? under.frame
-        let w = WindowSnapshot(id: under.id, app: under.app, title: under.title, frame: fresh, isMinimized: false)
-        guard let d = Displays.containing(fresh, in: control.displays()),
-              ZoneReturn.isOutOfZone(w, among: all, places: ZoneReturn.places(zones(on: d))) else { return nil }
+        guard !MeetingApps.inMeeting(all) else { return nil }
+        let shown = onScreen(all)
+        // Front to back, now: the click is the front window's. Cheap tests first; this runs while the click waits.
+        guard let front = shown.first(where: { $0.frame.contains(point) }),
+              point.x - front.frame.minX < Self.buttonCorner.width, point.y - front.frame.minY < Self.buttonCorner.height,
+              eligible(front),
+              // The button first: its read gives up fast on an app that does not answer, so a hung app cannot hold the click.
+              let button = control.greenButtonFrame(of: front.id), button.contains(point) else { return nil }
+        // The window's own frame, read now: the window server's, or Accessibility's when the server cannot say.
+        let w = WindowSnapshot(id: front.id, app: front.app, title: front.title, frame: control.frame(of: front.id) ?? front.frame,
+                               isMinimized: false)
+        guard let d = Displays.containing(w.frame, in: control.displays()),
+              ZoneReturn.isOutOfZone(w, among: shown.filter(eligible), places: ZoneReturn.places(zones(on: d))) else { return nil }
         return w.id
     }
 
@@ -133,23 +134,42 @@ import DeskmanPorts
         guard settings?.greenButton ?? true else { return [] }
         let all = control.windows()
         guard !MeetingApps.inMeeting(all) else { return [] }
-        let visible = all.filter(\.isVisible)
+        let shown = onScreen(all)
         let displays = control.displays()
         var hints: [Rect] = []
         var seen: [WindowID: (frame: Rect, button: Rect?)] = [:]
-        for w in visible where !(settings?.isFloating(w.app) ?? false) && !MeetingApps.contains(w.app) {
+        for w in shown where eligible(w) {
             guard let d = Displays.containing(w.frame, in: displays),
-                  ZoneReturn.isOutOfZone(w, among: all, places: ZoneReturn.places(zones(on: d))) else { continue }
+                  ZoneReturn.isOutOfZone(w, among: shown.filter(eligible), places: ZoneReturn.places(zones(on: d))) else { continue }
             let button = buttons[w.id].flatMap { $0.frame == w.frame ? $0.button : nil }
                 ?? control.greenButtonFrame(of: w.id)
             seen[w.id] = (w.frame, button)
-            // In view: the front window at the button is this one.
-            guard let button, visible.first(where: { $0.frame.contains(Point(x: button.midX, y: button.midY)) })?.id == w.id
+            // In view: the front window at the button, now, is this one.
+            guard let button, shown.first(where: { $0.frame.contains(Point(x: button.midX, y: button.midY)) })?.id == w.id
             else { continue }
             hints.append(button)
         }
         buttons = seen
         return hints
+    }
+
+    /// The visible windows as they are on screen now, front to back (2026-11-11: a second-old order put a ring on a
+    /// covered button). Without the window server's word, the list as it is.
+    private func onScreen(_ all: [WindowSnapshot]) -> [WindowSnapshot] {
+        let visible = all.filter(\.isVisible)
+        guard let now = control.onScreenNow() else { return visible }
+        let byID = Dictionary(visible.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        return now.compactMap { entry in
+            byID[entry.id].map { w in
+                WindowSnapshot(id: w.id, app: w.app, title: w.title, frame: entry.frame, isMinimized: false,
+                               desktop: w.desktop, isOnCurrentDesktop: true, document: w.document)
+            }
+        }
+    }
+
+    /// A window Deskman may put back: not an app it leaves alone, not a meeting app.
+    private func eligible(_ w: WindowSnapshot) -> Bool {
+        !(settings?.isFloating(w.app) ?? false) && !MeetingApps.contains(w.app)
     }
 
     public func returnToZone(_ id: WindowID) -> CommandOutcome {

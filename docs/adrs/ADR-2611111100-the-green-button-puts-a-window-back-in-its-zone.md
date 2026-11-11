@@ -17,8 +17,10 @@ it back into the zone". The click meant is the green title-bar button.
 
 1. **`ZoneReturn`** (domain). A window's *places* are the snap zones of its display, plus each side column (two zones
    stacked one on top of the other, as Smart Arrange uses for a window alone in a column). A window is *out of its
-   zone* when its frame is within 32 pt of no place, and it covers another visible window by more than a tenth of
-   the smaller one. Its target is the place it last sat in, if any. Otherwise it is the zone it covers most.
+   zone* when its frame is within 48 pt of no place, and it covers another visible window Deskman arranges by more
+   than a tenth of the smaller one. A window of an app Deskman leaves alone (Preview, Finder) floats over the grid by
+   design: covering it is not growing over a neighbour. (2026-11-11: 32 pt and counting every window put a ring on
+   iTerm2, which sat in its column 35 pt short, over a Preview window.) Its target is the place it last sat in, if any. Otherwise it is the zone it covers most.
 2. **`SnapService`** (`SnapPort`). Each second it notes the place every visible window sits in. On a click it
    *claims* the click only when all of these hold:
    - the switch is on;
@@ -33,6 +35,8 @@ it back into the zone". The click meant is the green title-bar button.
 4. **`WindowControl.greenButtonFrame(of:)`**: the button's frame, read from that one window. It is nil for a window in
    native full screen: clicking the green button there leaves full screen, as macOS does.
 5. **A green ring** is drawn around every green button in view whose click Deskman would take, refreshed each second.
+   In view is judged by the window server's order and frames at that moment, not the list, which may be a second old
+   (2026-11-11: an old order put a ring over Mail's sidebar, on Slack's covered button). Every ring hides on a click.
    It ignores the mouse, so a click on it reaches the button. (The user, 2026-11-11: "I don't see where the green
    button is telling me that there's an overlapping window.")
 6. **Green Button Puts Window Back in Its Zone** is in the menu. It is saved with the preferences and on by default.

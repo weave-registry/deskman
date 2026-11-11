@@ -214,3 +214,74 @@ private extension Rect {
         #expect(snap.greenButtonHints() == [button(of: fullScreen)])
     }
 }
+
+// 2026-11-11, the user's screenshot: a ring floated over Mail's sidebar. The list, a second old, had Slack in front;
+// the window server had Mail in front, over Slack's green button. The ring is decided by the order on screen now.
+@MainActor @Suite struct GreenButtonOrderTests {
+    let clock = FakeClock()
+
+    @Test func aButtonCoveredNowShowsNoRingThoughTheOldListSaysItIsInFront() {
+        let slack = Rect(x: 0, y: 400, width: 1280, height: 1000)   // grown over the window in zone 1
+        let mail = Rect(x: 0, y: 30, width: 1280, height: 420)      // now in front, over Slack's button
+        let windows = [win("s", "Slack", slack), win("m", "Mail", mail)]
+        let fake = FakeWindowControl(windows: windows, displays: [wide], frontmost: WindowID("s"))
+        for w in windows { fake.greenButtons[w.id] = button(of: w.frame) }
+        fake.onScreen = [(WindowID("m"), mail), (WindowID("s"), slack)]
+        let snap = SnapService(control: fake, intents: IntentLog(clock: clock))
+        #expect(!snap.greenButtonHints().contains(button(of: slack)))
+        #expect(snap.greenButtonClaim(at: onButton(of: slack)) == nil)
+    }
+
+    @Test func theFramesOnScreenNowAreTheOnesJudged() {
+        // The list still shows the window in zone 1; on screen it has grown over zone 2's.
+        let big = Rect(x: 0, y: 30, width: 1280, height: 1200)
+        let windows = [win("t", "Warp", z1), win("b", "Safari", z2)]
+        let fake = FakeWindowControl(windows: windows, displays: [wide], frontmost: WindowID("t"))
+        fake.greenButtons[WindowID("t")] = button(of: big)
+        fake.onScreen = [(WindowID("t"), big), (WindowID("b"), z2)]
+        let snap = SnapService(control: fake, intents: IntentLog(clock: clock))
+        #expect(snap.greenButtonHints() == [button(of: big)])
+    }
+
+    @Test func aWindowNoLongerOnScreenShowsNoRing() {
+        let windows = [win("f", "Safari", fullScreen), win("b", "Warp", z2)]
+        let fake = FakeWindowControl(windows: windows, displays: [wide], frontmost: WindowID("f"))
+        for w in windows { fake.greenButtons[w.id] = button(of: w.frame) }
+        fake.onScreen = [(WindowID("b"), z2)]   // Safari was closed a moment ago
+        let snap = SnapService(control: fake, intents: IntentLog(clock: clock))
+        #expect(snap.greenButtonHints().isEmpty)
+    }
+}
+
+// 2026-11-11, on the user's desktop: iTerm2 in its column, 35 pt short (whole text lines), got a ring because a
+// Preview window, which Deskman leaves alone, lay under it.
+@MainActor @Suite struct GreenButtonFalseRingTests {
+    let clock = FakeClock()
+
+    func make(_ windows: [WindowSnapshot]) -> SnapService {
+        let fake = FakeWindowControl(windows: windows, displays: [wide], frontmost: windows.first?.id)
+        for w in windows { fake.greenButtons[w.id] = button(of: w.frame) }
+        let settings = Settings(store: InMemoryPreferenceStore(Preferences()), control: fake)   // Preview is left alone
+        return SnapService(control: fake, intents: IntentLog(clock: clock), settings: settings)
+    }
+
+    @Test func aWindowAFewLinesShortOfItsColumnIsInIt() {
+        let short = Rect(x: 0, y: 30, width: 1280, height: 1380 - 40)
+        let s = make([win("i", "iTerm2", short), win("b", "Safari", Rect(x: 0, y: 1000, width: 1280, height: 410))])
+        #expect(s.greenButtonHints().isEmpty)
+    }
+
+    @Test func coveringOnlyAWindowDeskmanLeavesAloneIsNotGrowingOverANeighbour() {
+        let big = Rect(x: 0, y: 30, width: 1280, height: 1200)
+        let s = make([win("t", "Warp", big), win("p", "Preview", Rect(x: 600, y: 30, width: 1100, height: 1300))])
+        #expect(s.greenButtonHints().isEmpty)
+        #expect(s.greenButtonClaim(at: onButton(of: big)) == nil)
+    }
+
+    @Test func coveringAnArrangedWindowStillCounts() {
+        let big = Rect(x: 0, y: 30, width: 1280, height: 1200)
+        let s = make([win("t", "Warp", big), win("p", "Preview", Rect(x: 600, y: 30, width: 1100, height: 1300)),
+                      win("b", "Safari", z2)])
+        #expect(s.greenButtonHints() == [button(of: big)])
+    }
+}

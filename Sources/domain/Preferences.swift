@@ -17,10 +17,13 @@ public struct Preferences: Codable, Equatable, Sendable {
     /// The learned grid in use, by display index as text (ADR-2610131157). Learned, so "Forget My
     /// Activity" clears it, with the records it came from.
     public var gridShapes: [String: GridShape]
+    /// The mouse resting on a stacked window gives it the room (ADR-2611111000).
+    public var hoverExpand: Bool
 
     public init(floatingApps: [String] = Preferences.defaultFloatingApps, dragSnap: Bool = true,
                 boundProjects: [String] = [], declinedProjects: [String] = [], keepArranged: Bool = false,
-                gridShapes: [String: GridShape] = [:]) {
+                gridShapes: [String: GridShape] = [:], hoverExpand: Bool = true) {
+        self.hoverExpand = hoverExpand
         self.gridShapes = gridShapes
         self.keepArranged = keepArranged
         self.floatingApps = floatingApps
@@ -35,7 +38,7 @@ public struct Preferences: Codable, Equatable, Sendable {
 
     // A field missing from a saved file takes its default, so older files still decode.
     private enum CodingKeys: String, CodingKey {
-        case floatingApps, dragSnap, boundProjects, declinedProjects, keepArranged, gridShapes
+        case floatingApps, dragSnap, boundProjects, declinedProjects, keepArranged, gridShapes, hoverExpand
     }
 
     public init(from decoder: any Decoder) throws {
@@ -46,5 +49,6 @@ public struct Preferences: Codable, Equatable, Sendable {
         declinedProjects = try c.decodeIfPresent([String].self, forKey: .declinedProjects) ?? []
         keepArranged = try c.decodeIfPresent(Bool.self, forKey: .keepArranged) ?? false
         gridShapes = try c.decodeIfPresent([String: GridShape].self, forKey: .gridShapes) ?? [:]
+        hoverExpand = try c.decodeIfPresent(Bool.self, forKey: .hoverExpand) ?? true
     }
 }

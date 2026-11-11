@@ -79,8 +79,10 @@ import DeskmanPorts
         let front = control.frontmostWindowID().flatMap { id in windows.first { $0.id == id } }
         let focused = front?.app
         intents?.observe(windows)
-        let snapshot = DeskSnapshot(time: now, windows: windows, displays: displays, focusedApp: focused,
-                                    placedByDeskman: intents?.placedByDeskman(windows) ?? [],
+        // A window a hover has expanded is recorded where it rests (ADR-2611111000).
+        let resting = intents?.atRest(windows) ?? windows
+        let snapshot = DeskSnapshot(time: now, windows: resting, displays: displays, focusedApp: focused,
+                                    placedByDeskman: intents?.placedByDeskman(resting) ?? [],
                                     placedByPerson: intents?.pinned() ?? [], corrected: intents?.corrected() ?? [])
         focus?.record(app: focused, window: front?.id)
 

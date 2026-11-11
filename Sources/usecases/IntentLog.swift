@@ -29,13 +29,68 @@ import DeskmanPorts
     /// not fit. Kept while the window stays pinned, however often it is adjusted after.
     private var corrections: Set<WindowID> = []
 
+    // Hover moves (ADR-2611111000): neither the person's place nor Deskman's. Each hovered window's resting
+    // frame, every frame the hover put it at, and, once it is back, when.
+    private var resting: [WindowID: Rect] = [:]
+    private var hoverFrames: [WindowID: [Rect]] = [:]
+    private var hoverEnded: [WindowID: Double] = [:]
+    private var transient = false
+
     public init(clock: any TimeSource) {
         self.clock = clock
+    }
+
+    /// Run `body` with every frame set in it a hover move: it pins nothing and unpins nothing.
+    public func transiently<T>(_ body: () throws -> T) rethrows -> T {
+        let outer = transient
+        transient = true
+        defer { transient = outer }
+        return try body()
+    }
+
+    /// A hover is about to move `id` away from `frame`, where it rests.
+    public func hoverBegan(_ id: WindowID, resting frame: Rect) {
+        if resting[id] == nil || hoverEnded[id] != nil { hoverFrames[id] = [frame] }
+        resting[id] = frame
+        hoverEnded[id] = nil
+    }
+
+    /// The hover put `id` back, or let it go. Reads for a few seconds may still show a hover frame.
+    public func hoverEnded(_ id: WindowID) {
+        guard resting[id] != nil else { return }
+        hoverEnded[id] = clock.now()
+    }
+
+    /// `windows` with each hovered window at its resting frame: what learning records.
+    public func atRest(_ windows: [WindowSnapshot]) -> [WindowSnapshot] {
+        windows.map { w in
+            guard let r = resting[w.id], hoverEnded[w.id] == nil else { return w }
+            return WindowSnapshot(id: w.id, app: w.app, title: w.title, frame: r, isMinimized: w.isMinimized,
+                                  desktop: w.desktop, isOnCurrentDesktop: w.isOnCurrentDesktop, document: w.document)
+        }
+    }
+
+    /// True when `frame` is one the hover put `id` at, or its resting frame: no news.
+    private func isHoverFrame(_ id: WindowID, _ frame: Rect) -> Bool {
+        hoverFrames[id]?.contains { Self.near($0, frame) } ?? false
+    }
+
+    private func dropHover(_ id: WindowID) {
+        resting[id] = nil
+        hoverFrames[id] = nil
+        hoverEnded[id] = nil
+    }
+
+    /// Called by `IntentRecordingControl` for every frame Deskman sets.
+    func placed(_ id: WindowID, _ frame: Rect) {
+        guard transient else { return deskmanPlaced(id, frame) }
+        hoverFrames[id, default: []].append(frame)
     }
 
     /// Call on every observation of the desktop.
     public func observe(_ windows: [WindowSnapshot]) {
         let now = clock.now()
+        for (id, ended) in hoverEnded where now - ended > Self.attributionSeconds { dropHover(id) }
         for w in windows where w.isVisible {
             defer { last[w.id] = w.frame }
             // One observation per Deskman move, changed or not: a move that showed no
@@ -43,6 +98,11 @@ import DeskmanPorts
             // person's next move.
             let movedAt = deskmanMoved.removeValue(forKey: w.id)
             guard let before = last[w.id], Self.changed(before, w.frame) else { continue }
+            if hoverFrames[w.id] != nil {
+                if isHoverFrame(w.id, w.frame) { continue }
+                // Moved somewhere the hover never put it: the person, or another app. Not the hover's any more.
+                dropHover(w.id)
+            }
             if let from = deskmanFrom[w.id], now - from.time <= Self.attributionSeconds, !Self.changed(from.frame, w.frame) {
                 continue
             } else if let target = deskmanTarget[w.id], !Self.changed(target, w.frame) {
@@ -74,7 +134,7 @@ import DeskmanPorts
         intents = intents.filter { now - $0.value.time < Self.pinSeconds }
     }
 
-    /// Called by `IntentRecordingControl` for every frame Deskman sets.
+    /// A frame Deskman chose, not a hover's.
     func deskmanPlaced(_ id: WindowID, _ frame: Rect) {
         deskmanMoved[id] = clock.now()
         deskmanFrame[id] = frame
@@ -148,7 +208,7 @@ import DeskmanPorts
     public func frame(of id: WindowID) -> Rect? { inner.frame(of: id) }
     public func setFrame(_ frame: Rect, of id: WindowID) throws {
         try inner.setFrame(frame, of: id)
-        log.deskmanPlaced(id, frame)
+        log.placed(id, frame)
     }
     public func perform(_ action: WindowAction, on id: WindowID) throws { try inner.perform(action, on: id) }
     public func launch(app: String) throws { try inner.launch(app: app) }

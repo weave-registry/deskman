@@ -7,6 +7,7 @@ import DeskmanPorts
 @MainActor @Observable public final class SettingsModel {
     public private(set) var floatingApps: [String] = []
     public private(set) var dragSnap = true
+    public private(set) var hoverExpand = true
     public private(set) var problem: String?
 
     private let port: any SettingsPort
@@ -37,6 +38,7 @@ import DeskmanPorts
     public func toggleFrontmost() { run(port.toggleFloatingFrontmost()) }
     public func setFloating(_ app: String, _ on: Bool) { run(port.setFloating(app, on)) }
     public func setDragSnap(_ on: Bool) { run(port.setDragSnap(on)) }
+    public func setHoverExpand(_ on: Bool) { run(port.setHoverExpand(on)) }
 
     private func run(_ outcome: CommandOutcome) {
         refresh()
@@ -46,6 +48,7 @@ import DeskmanPorts
     private func refresh() {
         floatingApps = port.floatingApps
         dragSnap = port.dragSnap
+        hoverExpand = port.hoverExpand
         problem = port.problem
     }
 }

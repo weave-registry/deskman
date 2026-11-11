@@ -95,6 +95,14 @@ import DeskmanPorts
         return save(on ? "Drag to snap is on." : "Drag to snap is off. The snap keys still work.")
     }
 
+    public var hoverExpand: Bool { current.hoverExpand }
+
+    public func setHoverExpand(_ on: Bool) -> CommandOutcome {
+        current.hoverExpand = on
+        return save(on ? "Expand on Hover is on: the stacked window under the mouse gets the room."
+                       : "Expand on Hover is off.")
+    }
+
     private func save(_ done: String) -> CommandOutcome {
         do {
             try store.save(current)

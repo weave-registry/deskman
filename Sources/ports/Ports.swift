@@ -113,6 +113,17 @@ extension WindowControl {
     func endDrag(at point: Point, bypass: Bool) -> CommandOutcome?
 }
 
+/// What the mouse may do to a stack of windows (ADR-2611111000). Points are top-left, y down.
+@MainActor public protocol HoverPort: AnyObject, Sendable {
+    /// Every mouse move. Cheap: it only puts the stack back when the mouse leaves it.
+    func pointerMoved(to point: Point)
+    /// The mouse has stayed at `point` a moment: the stacked window under it gets the room.
+    func pointerRested(at point: Point)
+    /// A button went down: a click, a drag or a resize. Nothing expands until it is up.
+    func pointerPressed()
+    func pointerReleased()
+}
+
 /// The apps Deskman leaves alone, and the drag-to-snap switch (ADR-2610120742).
 @MainActor public protocol SettingsPort: AnyObject, Sendable {
     /// Sorted.
@@ -123,6 +134,9 @@ extension WindowControl {
     func toggleFloatingFrontmost() -> CommandOutcome
     var dragSnap: Bool { get }
     func setDragSnap(_ on: Bool) -> CommandOutcome
+    /// Expand on Hover (ADR-2611111000).
+    var hoverExpand: Bool { get }
+    func setHoverExpand(_ on: Bool) -> CommandOutcome
     /// Why the saved preferences could not be read, until the next change saves good ones.
     var problem: String? { get }
 }

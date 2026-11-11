@@ -169,6 +169,7 @@ You can name a window by its app, its title, or the name the model gave it
 | **Open Decision Log** <kbd>⌘L</kbd> | Opens the [decision log](#why-did-it-do-that-the-decision-log) in Console. |
 | **Open Deskman** | The panel, on its Ask tab. |
 | **Drag to Snap** | Turns drag-to-snap on or off. The hotkeys still work when it is off. |
+| **Expand Stacked Window on Hover** | Rest the mouse on one of two (or more) stacked windows and it takes at least three quarters of the height. The others stay visible above or below it, and everything goes back when the mouse leaves. On by default. |
 | **Apps Deskman Leaves Alone** | Apps whose windows Deskman never moves on its own. One item adds the front app. |
 | **Bound Projects** | The projects you bound. A click unbinds one. Shows only when a project is bound. |
 | **Learning** | The learn switch, and **Forget My Activity**. |
@@ -200,6 +201,11 @@ A line that has nothing to show says "Nothing yet". The **On Screen** switch dra
 | <kbd>⌃</kbd><kbd>⌥</kbd><kbd>D</kbd> | Turn drag-to-snap on or off |
 
 **Drag to snap:** drag a window by its title bar and drop it on a zone. Hold <kbd>⌥</kbd> to drop it freely.
+
+**Expand on hover:** when windows are stacked in one column, rest the mouse on one for a moment. It grows to at
+least three quarters of the column, and the windows above and below shrink to strips of at least 120 pt, so nothing
+is hidden. Rest on a strip to give the room to that window instead. Move the mouse out of the column and every
+window goes back where it was. A hover pins nothing and teaches the learner nothing (ADR-2611111000).
 
 ## What Deskman does on its own
 

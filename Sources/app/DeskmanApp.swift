@@ -25,6 +25,8 @@ import DeskmanUI
     private var hotKey: GlobalHotKey?
     private var snapKeys: SnapHotKeys?
     private var dragSnap: DragSnap?
+    private var hoverWatch: HoverWatch?
+    let hover: HoverService
     let snap: SnapService
     let settings: SettingsModel
     let bindings: BindingService
@@ -81,6 +83,9 @@ import DeskmanUI
         snap = SnapService(control: control, intents: intents, settings: preferences, bindings: bindings, grid: grid)
         snapKeys = interactive ? SnapHotKeys(port: snap, report: { [learning] in learning.note($0.message) }) : nil
         dragSnap = interactive ? DragSnap(port: snap) : nil
+        // The stacked window under the mouse gets the room (ADR-2611111000).
+        hover = HoverService(control: control, intents: intents, settings: preferences)
+        hoverWatch = interactive ? HoverWatch(port: hover) : nil
         settings = SettingsModel(port: preferences, keys: interactive, report: { [learning] in learning.note($0.message) })
         if interactive, dragSnap == nil { NSLog("Deskman: macOS refused the mouse event tap; drag-to-snap is off.") }
     }
@@ -88,6 +93,7 @@ import DeskmanUI
     var hotKeyRegistered: Bool { hotKey != nil }
     var snapKeysRegistered: Int { snapKeys?.registered ?? 0 }
     var dragSnapOn: Bool { dragSnap != nil }
+    var hoverWatchOn: Bool { hoverWatch != nil }
 }
 
 /// Observable, because the menu is built before `root` exists. Without it, the
@@ -120,7 +126,7 @@ import DeskmanUI
             let status = root.status
             print("windowControlTrusted=\(status.windowControlTrusted) assistant=\(status.assistant)")
             print("bundle=\(Bundle.main.bundlePath) pid=\(ProcessInfo.processInfo.processIdentifier)")
-            print("snapKeys=\(root.snapKeysRegistered)/6 dragSnap=\(root.dragSnapOn) settingsKeys=\(root.settings.registered)/2")
+            print("snapKeys=\(root.snapKeysRegistered)/6 dragSnap=\(root.dragSnapOn) hoverWatch=\(root.hoverWatchOn) settingsKeys=\(root.settings.registered)/2")
             print("dragSnapSwitch=\(root.settings.dragSnap) leftAlone=\(root.settings.floatingApps.joined(separator: ", "))")
             if let p = root.settings.problem { print("problem: \(p)") }
             exit(0)
@@ -323,6 +329,8 @@ private struct SettingsMenu: View {
 
     var body: some View {
         Toggle("Drag to Snap  ⌃⌥D", isOn: Binding(get: { settings.dragSnap }, set: { settings.setDragSnap($0) }))
+        Toggle("Expand Stacked Window on Hover", isOn: Binding(get: { settings.hoverExpand },
+                                                               set: { settings.setHoverExpand($0) }))
         Menu("Apps Deskman Leaves Alone") {
             Button("Leave the Front App Alone, or Not  ⌃⌥F") { settings.toggleFrontmost() }
             Divider()

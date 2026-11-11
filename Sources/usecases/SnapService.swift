@@ -36,6 +36,12 @@ import DeskmanPorts
         grid?.zones(on: display) ?? ZoneGenerator.snapZones(on: display)
     }
 
+    /// Where a window can be home: the places of every grid Smart Arrange may use here, so a window in
+    /// the second grid's zone 3 is home, and grown, goes back there (2026-11-11). Paired per grid.
+    private func places(on display: Display) -> [Rect] {
+        GridPlanner.grids(on: display, learned: grid?.shape(on: display)).flatMap(ZoneReturn.places)
+    }
+
     public func snapFrontmost(toZone zone: Int) -> CommandOutcome {
         guard let (w, display) = frontmost() else { return .failed("There is no window in front to snap.") }
         let zones = zones(on: display)
@@ -98,7 +104,7 @@ import DeskmanPorts
         let visible = control.windows().filter(\.isVisible)
         for w in visible {
             guard let d = Displays.containing(w.frame, in: displays),
-                  let p = ZoneReturn.place(of: w.frame, in: ZoneReturn.places(zones(on: d))) else { continue }
+                  let p = ZoneReturn.place(of: w.frame, in: places(on: d)) else { continue }
             lastPlace[w.id] = p
         }
         // Forget windows that are gone, so the memory does not grow forever.
@@ -123,7 +129,7 @@ import DeskmanPorts
         let w = WindowSnapshot(id: front.id, app: front.app, title: front.title, frame: control.frame(of: front.id) ?? front.frame,
                                isMinimized: false)
         guard let d = Displays.containing(w.frame, in: control.displays()),
-              ZoneReturn.isOutOfZone(w, among: shown.filter(eligible), places: ZoneReturn.places(zones(on: d))) else { return nil }
+              ZoneReturn.isOutOfZone(w, among: shown.filter(eligible), places: places(on: d)) else { return nil }
         return w.id
     }
 
@@ -140,7 +146,7 @@ import DeskmanPorts
         var seen: [WindowID: (frame: Rect, button: Rect?)] = [:]
         for w in shown where eligible(w) {
             guard let d = Displays.containing(w.frame, in: displays),
-                  ZoneReturn.isOutOfZone(w, among: shown.filter(eligible), places: ZoneReturn.places(zones(on: d))) else { continue }
+                  ZoneReturn.isOutOfZone(w, among: shown.filter(eligible), places: places(on: d)) else { continue }
             let button = buttons[w.id].flatMap { $0.frame == w.frame ? $0.button : nil }
                 ?? control.greenButtonFrame(of: w.id)
             seen[w.id] = (w.frame, button)
@@ -181,7 +187,7 @@ import DeskmanPorts
         guard let d = Displays.containing(frame, in: displays) else { return .failed("\(listed.app) is on no display.") }
         let zones = zones(on: d)
         // A remembered place on another display, or from a grid no longer in use, is no place now.
-        let remembered = lastPlace[id].flatMap { ZoneReturn.place(of: $0, in: ZoneReturn.places(zones)) }
+        let remembered = lastPlace[id].flatMap { ZoneReturn.place(of: $0, in: places(on: d)) }
         guard let target = ZoneReturn.target(for: frame, zones: zones, remembered: remembered) else {
             return .failed("There is no zone for \(listed.app) on this display.")
         }

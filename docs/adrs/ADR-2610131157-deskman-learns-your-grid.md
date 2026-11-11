@@ -95,3 +95,17 @@
   standard grid they give 1·2 (the incident); one correction adds a column, one plain move does not; a
   resize after Deskman's placement or a snap is a correction, a plain move is not; the shape survives a
   restart; Forget My Activity clears it; old records and old preferences still read.
+
+## Amendment 2026-11-11 — the standard grid is the default; learning is a switch, off
+
+- The user, 2026-11-11: "you keep fucking up our default zones, default is 1 over 2 left 3 center 4 over
+  5 right". `preferences.json` held a learned `[3, 3]` for display 0: two columns of three stacked. That
+  is the fourth time the learned grid has left the person's grid (see the amendments above). It also broke
+  `ZonePlanner.maxStack`: the learner capped rows by height only, and 1,410 pt fits three 400 pt rows.
+- Decision:
+  1. **`Preferences.learnGrid`, default false.** With it off, `LearnedGrid` returns the standard grid,
+     1 over 2 | 3 | 4 over 5, whatever `gridShapes` holds, and relearns nothing. A file written before the
+     field reads as off. The menu has "Learn My Grid From My Moves" to turn it on.
+  2. **No learned column stacks more than `ZonePlanner.maxStack`** (two), the same rule as the generator.
+- Gate: `scripts/gate.sh`; `DefaultGridTests`, written first and failing first (no `learnGrid`). The stack
+  cap was reverted on purpose; `noLearnedColumnStacksMoreThanTwo` failed, and only it.

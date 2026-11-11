@@ -353,6 +353,8 @@ private struct SettingsMenu: View {
                                                                set: { settings.setHoverExpand($0) }))
         Toggle("Green Button Puts Window Back in Its Zone", isOn: Binding(get: { settings.greenButton },
                                                                          set: { settings.setGreenButton($0) }))
+        Toggle("Learn My Grid From My Moves", isOn: Binding(get: { settings.learnGrid },
+                                                            set: { settings.setLearnGrid($0) }))
         Menu("Apps Deskman Leaves Alone") {
             Button("Leave the Front App Alone, or Not  ⌃⌥F") { settings.toggleFrontmost() }
             Divider()

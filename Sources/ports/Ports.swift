@@ -162,6 +162,9 @@ extension WindowControl {
     /// The green button puts a grown window back in its zone (ADR-2611111100).
     var greenButton: Bool { get }
     func setGreenButton(_ on: Bool) -> CommandOutcome
+    /// Learn the grid from the person's moves (ADR-2610131157); off: the standard grid.
+    var learnGrid: Bool { get }
+    func setLearnGrid(_ on: Bool) -> CommandOutcome
     /// Why the saved preferences could not be read, until the next change saves good ones.
     var problem: String? { get }
 }

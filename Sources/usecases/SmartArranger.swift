@@ -97,13 +97,17 @@ import DeskmanPorts
 
         // The person's grid, and only that: 1 over 2, 3 in the middle, 4 over 5 (GridPlanner).
         // Windows already in a zone stay; the rest fill free zones; none is squeezed or minimized.
-        let shape = self.grid?.shape(on: display)
+        // More windows than five zones hold: the second grid, 1 over 2 | 3 | 4 | 5 over 6 (2026-11-11).
+        let shape = GridPlanner.shape(windows: onDisplay.count + meetings.count, on: display,
+                                      learned: self.grid?.shape(on: display))
         let grid = GridPlanner.plan(active, on: display, kept: kept.map(\.frame), center: named, shape: shape)
         let plan = grid.zonePlan(on: display, shape: shape)
         guard !plan.placements.isEmpty else {
             return .failed(.failed("There is no free zone on this display: every zone is kept."))
         }
-        reasons.append("Layout: your grid, 1 over 2, 3 in the middle, 4 over 5. A window already in a zone stays; "
+        reasons.append("Layout: " + (shape == .six ? "your second grid, 1 over 2, 3, 4, 5 over 6. "
+                                     : shape != nil ? "your learned grid, \(shape!.phrase). " : "your grid, 1 over 2, 3 in the middle, 4 over 5. ")
+                       + "A window already in a zone stays; "
                        + "the middle goes to " + (named != nil ? "the window you named" : "the most used browser, else the most used window") + ".")
         for p in plan.placements where GridPlanner.near(p.window.frame, p.frame) {
             reasons.append("Stays: \(p.window.app) \"\(p.window.title.prefix(30))\" is already in \(p.zone.label).")

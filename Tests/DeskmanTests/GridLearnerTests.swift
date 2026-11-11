@@ -401,7 +401,7 @@ private func placed(_ time: Double, _ app: String, _ title: String, _ rect: Rect
     }
 
     @Test func theGridInUseSurvivesARestart() {
-        let prefs = InMemoryPreferenceStore()
+        let prefs = InMemoryPreferenceStore(Preferences(learnGrid: true))
         let (first, _, _) = service(prefs, GridInUseTests.incident.prefix(5) + moves(0, standard))
         #expect(first.shape(on: wide) == GridShape(rows: [2, 1, 2]))
         // A new run, the same files: it starts from 2·1·2, so the incident's moves keep it.
@@ -410,7 +410,7 @@ private func placed(_ time: Double, _ app: String, _ title: String, _ rect: Rect
     }
 
     @Test func forgetMyActivityForgetsTheGrid() {
-        let prefs = InMemoryPreferenceStore()
+        let prefs = InMemoryPreferenceStore(Preferences(learnGrid: true))
         let (grid, store, settings) = service(prefs, moves(0, standard))
         #expect(grid.shape(on: wide) != nil)
         let control = FakeWindowControl(windows: [], displays: [wide])
@@ -418,5 +418,67 @@ private func placed(_ time: Double, _ app: String, _ title: String, _ rect: Rect
         #expect(activity.forget().succeeded)
         #expect(grid.shape(on: wide) == nil)
         #expect(settings.gridShape(on: 0) == nil)
+    }
+}
+
+// The user, 2026-11-11: "you keep fucking up our default zones, default is 1 over 2 left 3 center
+// 4 over 5 right". A learned [3, 3] had replaced it. The standard grid is the grid unless the person
+// turns learning on, and no grid ever stacks more than `ZonePlanner.maxStack`.
+@MainActor @Suite struct DefaultGridTests {
+    /// The standard grid, in points on `wide`.
+    static var standardZones: [Rect] {
+        let v = wide.visibleFrame
+        return standard.map { Rect(x: v.x + $0.x * v.width, y: v.y + $0.y * v.height,
+                                   width: $0.width * v.width, height: $0.height * v.height) }
+    }
+
+    func grid(_ prefs: Preferences, _ history: [DeskSnapshot]) -> LearnedGrid {
+        let store = InMemoryActivityStore()
+        for s in history { try? store.append(s) }
+        let clock = FakeClock()
+        clock.t = 10
+        return LearnedGrid(history: store, clock: clock, settings: Settings(store: InMemoryPreferenceStore(prefs), control: nil))
+    }
+
+    @Test func theStandardGridIsOneOverTwoThreeFourOverFive() {
+        let zones = ZoneGenerator.snapZones(on: wide)
+        #expect(zones.count == 5)
+        for (z, s) in zip(zones, Self.standardZones) {
+            #expect(abs(z.x - s.x) < 0.5 && abs(z.y - s.y) < 0.5 && abs(z.width - s.width) < 0.5
+                    && abs(z.height - s.height) < 0.5, "\(z) is not \(s)")
+        }
+    }
+
+    @Test func learningIsOffUnlessThePersonTurnsItOn() {
+        #expect(Preferences().learnGrid == false)
+        // Moves that would teach three equal columns change nothing.
+        let g = grid(Preferences(), moves(0, thirds) + moves(5, thirds))
+        #expect(g.shape(on: wide) == nil)
+        #expect(g.zones(on: wide) == ZoneGenerator.snapZones(on: wide))
+    }
+
+    @Test func aStoredShapeIsIgnoredWhileLearningIsOff() throws {
+        // The preferences of 2026-11-11: a learned [3, 3], written before the switch existed.
+        let old = #"{"dragSnap":true,"floatingApps":[],"gridShapes":{"0":{"rows":[3,3]}}}"#
+        let prefs = try JSONDecoder().decode(Preferences.self, from: Data(old.utf8))
+        #expect(prefs.learnGrid == false)
+        let g = grid(prefs, [])
+        #expect(g.zones(on: wide) == ZoneGenerator.snapZones(on: wide))
+        #expect(g.describe(on: wide).contains("1 over 2"), "\(g.describe(on: wide))")
+    }
+
+    @Test func turnedOnItLearns() {
+        var prefs = Preferences()
+        prefs.learnGrid = true
+        #expect(grid(prefs, moves(0, thirds) + moves(5, thirds)).shape(on: wide) == GridShape(rows: [1, 1, 1]))
+    }
+
+    @Test func noLearnedColumnStacksMoreThanTwo() {
+        // Three rows in each half, as the person might drag them: 1440 pt fits three 400 pt rows.
+        let sixths: [Rect] = (0..<2).flatMap { c in (0..<3).map { r in
+            Rect(x: Double(c) / 2, y: Double(r) / 3, width: 0.5, height: 1.0 / 3) } }
+        let learned = GridLearner.learn(from: moves(0, sixths), on: wide, now: 10)
+        #expect(learned != nil)
+        #expect(learned?.shape.rows.allSatisfy { $0 <= ZonePlanner.maxStack } == true, "\(String(describing: learned))")
     }
 }

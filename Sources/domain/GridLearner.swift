@@ -11,6 +11,10 @@ public struct GridShape: Equatable, Codable, Sendable {
         self.rows = rows
     }
 
+    /// The second grid: 1 over 2 | 3 | 4 | 5 over 6, four equal columns, the center split in two
+    /// (the user, 2026-11-11). For more windows than the first grid's five zones hold.
+    public static let six = GridShape(rows: [2, 1, 1, 2])
+
     /// Equal columns, and equal zones within a column, tiling the visible frame: no gap, no
     /// overlap. Numbered left to right, then top to bottom, as the snap zones are.
     public func zones(on display: Display) -> [Rect] {
@@ -74,7 +78,8 @@ public enum GridLearner {
 
         let v = display.visibleFrame
         let maxColumns = max(1, Int(v.width / ZonePlanner.minimumWidth))
-        let maxRows = max(1, Int(v.height / ZonePlanner.minimumHeight))
+        // Two at most on top of each other, however tall (ZonePlanner.maxStack): a learned [3, 3], 2026-11-11.
+        let maxRows = max(1, min(Int(v.height / ZonePlanner.minimumHeight), ZonePlanner.maxStack))
         // The grid in use, as fractions of the visible frame.
         let standard = ZoneGenerator.snapZones(on: display, shape: inUse).map {
             Rect(x: ($0.x - v.x) / v.width, y: ($0.y - v.y) / v.height, width: $0.width / v.width, height: $0.height / v.height)

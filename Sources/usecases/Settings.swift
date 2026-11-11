@@ -76,6 +76,15 @@ import DeskmanPorts
     /// The learned grid in use on a display (ADR-2610131157), or nil for the standard grid.
     public func gridShape(on display: Int) -> GridShape? { current.gridShapes[String(display)] }
 
+    /// Whether the grid is learned from the person's moves; off: the standard grid.
+    public var learnGrid: Bool { current.learnGrid }
+
+    public func setLearnGrid(_ on: Bool) -> CommandOutcome {
+        current.learnGrid = on
+        return save(on ? "Deskman learns your grid from your moves. It is used from the next arrange or snap."
+                       : "Standard grid: 1 over 2 on the left, 3 in the center, 4 over 5 on the right.")
+    }
+
     func setGridShape(_ shape: GridShape?, on display: Int) -> CommandOutcome {
         guard current.gridShapes[String(display)] != shape else { return .ok("") }
         current.gridShapes[String(display)] = shape

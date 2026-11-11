@@ -21,6 +21,11 @@ import DeskmanPorts
 
     /// Learn again from the records: on the learning tick. A change is logged once.
     public func relearn(displays: [Display]) {
+        // Learning off (the default): the standard grid, whatever is stored (the user, 2026-11-11).
+        guard learning else {
+            for d in displays { learned[d.index] = .some(nil) }
+            return
+        }
         let records = history.snapshots()
         for d in displays {
             let now = GridLearner.learn(from: records, on: d, now: clock.now(), ignoring: ignored,
@@ -56,6 +61,9 @@ import DeskmanPorts
         learned = [:]
     }
 
+    /// No settings (a test of the learner alone): on.
+    private var learning: Bool { settings?.learnGrid ?? true }
+
     private func ignored(_ app: String) -> Bool { settings?.isFloating(app) ?? false }
 
     /// In words, for What Deskman Knows.
@@ -63,6 +71,9 @@ import DeskmanPorts
         if learned[display.index] == nil { relearn(displays: [display]) }
         if let l = learned[display.index] ?? nil {
             return "Learned from \(l.placements) of your moves: \(l.shape.phrase)."
+        }
+        guard learning else {
+            return "Standard grid: 1 over 2 on the left, 3 in the center, 4 over 5 on the right. Learning your grid is off."
         }
         let n = GridLearner.placements(in: history.snapshots(), on: display, now: clock.now(), ignoring: ignored)
         return "Standard grid. Yours is learned after \(GridLearner.minimumPlacements) of your moves (\(n) so far)."

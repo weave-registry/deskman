@@ -1,5 +1,6 @@
 import Testing
 import DeskmanPorts
+import DeskmanUseCases
 
 // The user, 2026-10-12: "you keep moving my windows around, we have a layout already of 1 over 2,
 // 3 middle, 4 over 5. These are organized to maximize the content and focus area; we should only
@@ -72,5 +73,84 @@ private func frame(_ r: GridPlanner.Result, _ id: String) -> Rect? { r.placement
     @Test func theNamedWindowTakesTheMiddle() {
         let r = GridPlanner.plan([win("a", "iTerm2"), win("f", "Firefox")], on: wide, kept: [], center: WindowID("a"))
         #expect(frame(r, "a") == z[2])
+    }
+}
+
+// The user, 2026-11-11: "second is divide the center by 2 and have 1 over 2, 3 next to 4 then 5 over 6".
+// Used when there are more windows than the five zones hold.
+@Suite struct SixZoneGridTests {
+    /// 1 over 2 | 3 | 4 | 5 over 6, quarters, as fractions: the oracle, written from the words.
+    static let sixths: [Rect] = [
+        Rect(x: 0, y: 0, width: 0.25, height: 0.5), Rect(x: 0, y: 0.5, width: 0.25, height: 0.5),
+        Rect(x: 0.25, y: 0, width: 0.25, height: 1), Rect(x: 0.5, y: 0, width: 0.25, height: 1),
+        Rect(x: 0.75, y: 0, width: 0.25, height: 0.5), Rect(x: 0.75, y: 0.5, width: 0.25, height: 0.5),
+    ]
+    static var six: [Rect] {
+        let v = wide.visibleFrame
+        return sixths.map { Rect(x: v.x + $0.x * v.width, y: v.y + $0.y * v.height, width: $0.width * v.width,
+                                 height: $0.height * v.height) }
+    }
+
+    @Test func theSecondGridIsOneOverTwoThreeFourFiveOverSix() {
+        let zones = ZoneGenerator.snapZones(on: wide, shape: .six)
+        #expect(zones.count == 6)
+        for (a, b) in zip(zones, Self.six) {
+            #expect(abs(a.x - b.x) < 0.5 && abs(a.y - b.y) < 0.5 && abs(a.width - b.width) < 0.5
+                    && abs(a.height - b.height) < 0.5, "\(a) is not \(b)")
+        }
+    }
+
+    @Test func fiveWindowsOrFewerKeepTheFirstGrid() {
+        for n in 0...5 { #expect(GridPlanner.shape(windows: n, on: wide, learned: nil) == nil) }
+    }
+
+    @Test func sixOrMoreTakeTheSecond() {
+        for n in 6...9 { #expect(GridPlanner.shape(windows: n, on: wide, learned: nil) == .six) }
+    }
+
+    @Test func aLearnedGridWins() {
+        #expect(GridPlanner.shape(windows: 8, on: wide, learned: GridShape(rows: [1, 1, 1])) == GridShape(rows: [1, 1, 1]))
+    }
+
+    @Test func aDisplayTooNarrowForFourColumnsKeepsTheFirst() {
+        // 2,560 pt: a quarter is 640, under the 700 pt minimum.
+        let narrow = Display(index: 0, visibleFrame: Rect(x: 0, y: 30, width: 2560, height: 1410))
+        #expect(GridPlanner.shape(windows: 7, on: narrow, learned: nil) == nil)
+    }
+
+    @Test func sixWindowsFillSixZonesTheBrowserIn3TheNextIn4() {
+        let ws = [win("f", "Firefox"), win("a", "iTerm2"), win("b", "Slack"), win("c", "Mail"),
+                  win("d", "Notes"), win("e", "Music")]
+        let r = GridPlanner.plan(ws, on: wide, kept: [], shape: .six)
+        let zones = ZoneGenerator.snapZones(on: wide, shape: .six)
+        #expect(r.leftAlone.isEmpty)
+        #expect(Set(r.placements.map { "\($0.frame)" }) == Set(zones.map { "\($0)" }))
+        #expect(frame(r, "f") == zones[2])
+        #expect(frame(r, "a") == zones[3])
+    }
+}
+
+@MainActor @Suite struct SixZoneArrangeTests {
+    @Test func smartArrangeWithSixWindowsUsesTheSecondGrid() {
+        let ws = (0..<6).map { i in
+            WindowSnapshot(id: WindowID("w\(i)"), app: "App\(i)", title: "w\(i)",
+                           frame: Rect(x: 100 + Double(i) * 50, y: 100, width: 800, height: 600), isMinimized: false)
+        }
+        let control = FakeWindowControl(windows: ws, displays: [wide], frontmost: WindowID("w0"))
+        let arranger = SmartArranger(control: control, history: nil)
+        #expect(WindowService(control: control, arranger: arranger).smartArrange(biggest: nil).succeeded)
+        let zones = ZoneGenerator.snapZones(on: wide, shape: .six)
+        #expect(Set(control.frames.map { "\($0.1)" }) == Set(zones.map { "\($0)" }), "\(control.frames)")
+    }
+
+    @Test func smartArrangeWithFiveKeepsTheFirstGrid() {
+        let ws = (0..<5).map { i in
+            WindowSnapshot(id: WindowID("w\(i)"), app: "App\(i)", title: "w\(i)",
+                           frame: Rect(x: 100 + Double(i) * 50, y: 100, width: 800, height: 600), isMinimized: false)
+        }
+        let control = FakeWindowControl(windows: ws, displays: [wide], frontmost: WindowID("w0"))
+        let arranger = SmartArranger(control: control, history: nil)
+        #expect(WindowService(control: control, arranger: arranger).smartArrange(biggest: nil).succeeded)
+        #expect(Set(control.frames.map { "\($0.1)" }) == Set(z.map { "\($0)" }), "\(control.frames)")
     }
 }

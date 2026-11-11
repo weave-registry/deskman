@@ -9,6 +9,7 @@ import DeskmanPorts
     public private(set) var dragSnap = true
     public private(set) var hoverExpand = true
     public private(set) var greenButton = true
+    public private(set) var learnGrid = false
     public private(set) var problem: String?
 
     private let port: any SettingsPort
@@ -41,6 +42,7 @@ import DeskmanPorts
     public func setDragSnap(_ on: Bool) { run(port.setDragSnap(on)) }
     public func setHoverExpand(_ on: Bool) { run(port.setHoverExpand(on)) }
     public func setGreenButton(_ on: Bool) { run(port.setGreenButton(on)) }
+    public func setLearnGrid(_ on: Bool) { run(port.setLearnGrid(on)) }
 
     private func run(_ outcome: CommandOutcome) {
         refresh()
@@ -52,6 +54,7 @@ import DeskmanPorts
         dragSnap = port.dragSnap
         hoverExpand = port.hoverExpand
         greenButton = port.greenButton
+        learnGrid = port.learnGrid
         problem = port.problem
     }
 }

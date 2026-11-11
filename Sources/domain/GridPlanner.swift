@@ -29,6 +29,26 @@ public enum GridPlanner {
         }
     }
 
+    /// The grid for `windows` windows sharing `display`: the learned one when there is one; else the
+    /// second grid (1 over 2 | 3 | 4 | 5 over 6) when they are more than the first grid's zones and
+    /// a quarter of the display is wide enough to work in; else nil, the first grid.
+    public static func shape(windows: Int, on display: Display, learned: GridShape?) -> GridShape? {
+        if let learned { return learned }
+        let v = display.visibleFrame
+        guard windows > ZoneGenerator.snapZones(on: display).count, v.width > v.height,
+              v.width / 4 >= ZonePlanner.minimumWidth - 0.5 else { return nil }
+        return .six
+    }
+
+    /// Every grid a window may have been put in on `display`: the learned one alone; else the first
+    /// grid, and the second when the display fits it. Each grid's zones, as `snapZones` numbers them.
+    public static func grids(on display: Display, learned: GridShape?) -> [[Rect]] {
+        if let learned { return [ZoneGenerator.snapZones(on: display, shape: learned)] }
+        let first = ZoneGenerator.snapZones(on: display)
+        guard let six = shape(windows: first.count + 1, on: display, learned: nil) else { return [first] }
+        return [first, ZoneGenerator.snapZones(on: display, shape: six)]
+    }
+
     /// How far a window may sit from a zone and still be in it, per edge (an app settles: iTerm2
     /// snaps to whole text cells).
     static let tolerance = 48.0
@@ -85,9 +105,10 @@ public enum GridPlanner {
             rest.removeAll { $0.id == pick.id }
         }
 
-        // Side columns, nearest the middle first, the left before the right.
+        // Side columns, nearest the middle first; at the same distance a full-height one (zone 4 of
+        // the second grid) before a stacked one; then the left before the right.
         let sides = columns.indices.filter { $0 != middle }
-            .sorted { (abs($0 - middle), $0) < (abs($1 - middle), $1) }
+            .sorted { (abs($0 - middle), columns[$0].count, $0) < (abs($1 - middle), columns[$1].count, $1) }
 
         // 3. Browsers: a whole column each.
         for w in rest where Browsers.contains(w.app) {

@@ -285,3 +285,35 @@ private extension Rect {
         #expect(s.greenButtonHints() == [button(of: big)])
     }
 }
+
+// The second grid (2026-11-11): 1 over 2 | 3 | 4 | 5 over 6. A window Smart Arrange put in one of its
+// zones is home there too; grown, it goes back to that zone, not to the first grid's wide middle.
+@MainActor @Suite struct GreenButtonSecondGridTests {
+    let clock = FakeClock()
+    static let q3 = Rect(x: 1280, y: 30, width: 1280, height: 1380)
+    static let q4 = Rect(x: 2560, y: 30, width: 1280, height: 1380)
+
+    func make(_ windows: [WindowSnapshot]) -> (SnapService, FakeWindowControl) {
+        let fake = FakeWindowControl(windows: windows, displays: [wide], frontmost: windows.first?.id)
+        for w in windows { fake.greenButtons[w.id] = button(of: w.frame) }
+        let settings = Settings(store: InMemoryPreferenceStore(Preferences()), control: fake)
+        return (SnapService(control: fake, intents: nil, settings: settings), fake)
+    }
+
+    @Test func aWindowInZone3OfTheSecondGridIsHomeEvenSettledAFewPointsOver() {
+        let settled = Rect(x: 1280, y: 30, width: 1300, height: 1380)  // 20 pt over zone 4
+        let (snap, _) = make([win("a", "Warp", settled), win("b", "Safari", Self.q4)])
+        #expect(snap.greenButtonClaim(at: onButton(of: settled)) == nil)
+    }
+
+    @Test func grownFromZone3OfTheSecondGridItGoesBackThere() {
+        let (snap, fake) = make([win("a", "Warp", Self.q3), win("b", "Safari", Self.q4)])
+        snap.observe()
+        let big = Rect(x: 1280, y: 30, width: 2200, height: 1380)
+        fake.windowList[0] = win("a", "Warp", big)
+        fake.greenButtons[WindowID("a")] = button(of: big)
+        #expect(snap.greenButtonClaim(at: onButton(of: big)) == WindowID("a"))
+        #expect(snap.returnToZone(WindowID("a")).succeeded)
+        #expect(fake.frames.last?.1 == Self.q3, "\(fake.frames)")
+    }
+}

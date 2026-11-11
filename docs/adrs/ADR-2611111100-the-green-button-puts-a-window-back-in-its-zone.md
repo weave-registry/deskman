@@ -32,7 +32,10 @@ it back into the zone". The click meant is the green title-bar button.
    timeout, so a hung app cannot hold the mouse.
 4. **`WindowControl.greenButtonFrame(of:)`**: the button's frame, read from that one window. It is nil for a window in
    native full screen: clicking the green button there leaves full screen, as macOS does.
-5. **Green Button Puts Window Back in Its Zone** is in the menu. It is saved with the preferences and on by default.
+5. **A green ring** is drawn around every green button in view whose click Deskman would take, refreshed each second.
+   It ignores the mouse, so a click on it reaches the button. (The user, 2026-11-11: "I don't see where the green
+   button is telling me that there's an overlapping window.")
+6. **Green Button Puts Window Back in Its Zone** is in the menu. It is saved with the preferences and on by default.
 
 ## Consequences
 

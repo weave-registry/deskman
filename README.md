@@ -209,7 +209,8 @@ A line that has nothing to show says "Nothing yet". The **On Screen** switch dra
 **The green button:** a window that has grown past its zone over other windows (full height, full screen, a dragged
 edge) goes back to the zone it came from when you click its green button, or to the zone it covers most. The click
 never reaches macOS, so the window does not go full screen. A window in its zone, or covering nothing, keeps the
-usual green button; hold <kbd>⌥</kbd> to zoom as macOS does (ADR-2611111100).
+usual green button; hold <kbd>⌥</kbd> to zoom as macOS does (ADR-2611111100). **A green ring around a window's
+green button** means Deskman will take that click: the window has grown over another.
 
 **Expand on hover:** when windows are stacked in one column, rest the mouse on one for a moment. It grows to at
 least three quarters of the column, and the windows above and below shrink to strips of at least 120 pt, so nothing

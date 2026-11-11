@@ -126,6 +126,32 @@ import DeskmanPorts
         return w.id
     }
 
+    /// Each window's green button, with the frame the window had when it was asked: asked again only after a move.
+    private var buttons: [WindowID: (frame: Rect, button: Rect?)] = [:]
+
+    public func greenButtonHints() -> [Rect] {
+        guard settings?.greenButton ?? true else { return [] }
+        let all = control.windows()
+        guard !MeetingApps.inMeeting(all) else { return [] }
+        let visible = all.filter(\.isVisible)
+        let displays = control.displays()
+        var hints: [Rect] = []
+        var seen: [WindowID: (frame: Rect, button: Rect?)] = [:]
+        for w in visible where !(settings?.isFloating(w.app) ?? false) && !MeetingApps.contains(w.app) {
+            guard let d = Displays.containing(w.frame, in: displays),
+                  ZoneReturn.isOutOfZone(w, among: all, places: ZoneReturn.places(zones(on: d))) else { continue }
+            let button = buttons[w.id].flatMap { $0.frame == w.frame ? $0.button : nil }
+                ?? control.greenButtonFrame(of: w.id)
+            seen[w.id] = (w.frame, button)
+            // In view: the front window at the button is this one.
+            guard let button, visible.first(where: { $0.frame.contains(Point(x: button.midX, y: button.midY)) })?.id == w.id
+            else { continue }
+            hints.append(button)
+        }
+        buttons = seen
+        return hints
+    }
+
     public func returnToZone(_ id: WindowID) -> CommandOutcome {
         guard let listed = control.windows().first(where: { $0.id == id }) else {
             return .failed("That window is gone.")

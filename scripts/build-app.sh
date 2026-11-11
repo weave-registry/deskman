@@ -6,8 +6,8 @@ cd "$(dirname "$0")/.."
 
 CONFIG=${CONFIG:-release}
 # The release version: bump both when cutting a release (CFBundleVersion counts releases).
-VERSION=0.3.0
-BUILD=3
+VERSION=0.3.1
+BUILD=4
 swift build -c "$CONFIG" --explicit-target-dependency-import-check error
 BIN="$(swift build -c "$CONFIG" --show-bin-path)/Deskman"
 

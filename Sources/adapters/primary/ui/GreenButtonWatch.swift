@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 import DeskmanPorts
 
 /// The green button puts a grown window back in its zone (ADR-2611111100). Deskman's one *active* event tap: a
@@ -11,6 +12,8 @@ import DeskmanPorts
     private var timer: Timer?
     /// The window whose button-down was taken; its button-up is taken too.
     private var claimed: WindowID?
+    /// A ring on each green button whose click Deskman would take (the user, 2026-11-11: "where am I supposed to see that?").
+    private let rings = GreenButtonRings()
 
     /// Nil when macOS refuses the event tap (no Accessibility permission).
     public init?(port: any SnapPort, report: @escaping @MainActor (CommandOutcome) -> Void) {
@@ -29,13 +32,18 @@ import DeskmanPorts
         let source = CFMachPortCreateRunLoopSource(nil, tap, 0)
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
-        port.observe()
+        tick()
         let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.port.observe() }
+            MainActor.assumeIsolated { self?.tick() }
         }
         timer.tolerance = 0.2
         RunLoop.main.add(timer, forMode: .common)
         self.timer = timer
+    }
+
+    private func tick() {
+        port.observe()
+        rings.show(port.greenButtonHints())
     }
 
     /// True takes the event away from every app.
@@ -63,10 +71,55 @@ import DeskmanPorts
                 guard let self else { return }
                 let outcome = self.port.returnToZone(id)
                 if !outcome.succeeded { self.report(outcome) }
+                self.rings.show(self.port.greenButtonHints())
             }
             return true
         default:
             return false
+        }
+    }
+}
+
+/// Green rings drawn over green buttons, one small panel each. They take no clicks: a click on the ring is a click
+/// on the button under it.
+@MainActor final class GreenButtonRings {
+    /// How far the ring reaches past the button, on every side, in points.
+    static let margin = 6.0
+    private var panels: [NSPanel] = []
+
+    /// `buttons` top-left, y down, as the hexagon has them.
+    func show(_ buttons: [Rect]) {
+        guard let primary = NSScreen.screens.first else { return }
+        let h = Double(primary.frame.height)
+        while panels.count < buttons.count { panels.append(Self.panel()) }
+        for (i, panel) in panels.enumerated() {
+            guard i < buttons.count else { panel.orderOut(nil); continue }
+            let b = buttons[i], m = Self.margin
+            let around = Rect(x: b.x - m, y: b.y - m, width: b.width + 2 * m, height: b.height + 2 * m)
+            let f = CoordinateSpace.appKit(fromTopLeft: around, primaryDisplayHeight: h)
+            panel.setFrame(NSRect(x: f.x, y: f.y, width: f.width, height: f.height), display: true)
+            panel.orderFrontRegardless()
+        }
+    }
+
+    private static func panel() -> NSPanel {
+        let p = NSPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: true)
+        p.isOpaque = false
+        p.backgroundColor = .clear
+        p.ignoresMouseEvents = true
+        p.hasShadow = false
+        p.level = .floating
+        p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
+        p.contentView = NSHostingView(rootView: Ring())
+        return p
+    }
+
+    private struct Ring: View {
+        var body: some View {
+            Circle()
+                .strokeBorder(Color.green, lineWidth: 2.5)
+                .shadow(color: .green.opacity(0.9), radius: 3)
+                .padding(1)
         }
     }
 }

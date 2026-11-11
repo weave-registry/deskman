@@ -125,6 +125,8 @@ extension WindowControl {
     func greenButtonClaim(at point: Point) -> WindowID?
     /// Put a claimed window back in its zone.
     func returnToZone(_ id: WindowID) -> CommandOutcome
+    /// The green buttons in view whose click Deskman would take now, to draw a ring on. Call it every second.
+    func greenButtonHints() -> [Rect]
 }
 
 /// What the mouse may do to a stack of windows (ADR-2611111000). Points are top-left, y down.

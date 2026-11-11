@@ -170,3 +170,47 @@ private extension Rect {
         #expect(log.pinned().contains(WindowID("t")))
     }
 }
+
+// A window whose green button Deskman would take shows a ring on it (the user, 2026-11-11: "I don't see where the
+// green button is telling me that there's an overlapping window").
+@MainActor @Suite struct GreenButtonHintTests {
+    let clock = FakeClock()
+
+    func make(_ windows: [WindowSnapshot], preferences: Preferences = Preferences()) -> (SnapService, FakeWindowControl) {
+        let fake = FakeWindowControl(windows: windows, displays: [wide], frontmost: windows.first?.id)
+        for w in windows { fake.greenButtons[w.id] = button(of: w.frame) }
+        let settings = Settings(store: InMemoryPreferenceStore(preferences), control: fake)
+        return (SnapService(control: fake, intents: IntentLog(clock: clock), settings: settings), fake)
+    }
+
+    @Test func aGrownWindowCoveringAnotherShowsARingOnItsGreenButton() {
+        let big = Rect(x: 0, y: 30, width: 1280, height: 1200)
+        let (snap, _) = make([win("t", "Warp", big), win("b", "Safari", z2), win("c", "Xcode", z3)])
+        #expect(snap.greenButtonHints() == [button(of: big)])
+    }
+
+    @Test func windowsInTheirZonesShowNoRing() {
+        let (snap, _) = make([win("t", "Warp", z1), win("b", "Safari", z2), win("c", "Xcode", z3)])
+        #expect(snap.greenButtonHints().isEmpty)
+    }
+
+    @Test func aButtonCoveredByAnotherWindowShowsNoRing() {
+        let big = Rect(x: 0, y: 30, width: 1280, height: 1200)
+        let front = win("f", "Notes", Rect(x: 40, y: 35, width: 400, height: 300))
+        let (snap, _) = make([front, win("t", "Warp", big), win("b", "Safari", z2)])
+        // Notes is out of its zone too, and its own button is in view: only its ring shows.
+        #expect(snap.greenButtonHints() == [button(of: front.frame)])
+    }
+
+    @Test func offInTheMenuShowsNoRing() {
+        let (snap, _) = make([win("f", "Safari", fullScreen), win("b", "Warp", z2)], preferences: Preferences(greenButton: false))
+        #expect(snap.greenButtonHints().isEmpty)
+    }
+
+    @Test func theButtonIsAskedForOnceWhileTheWindowStaysPut() {
+        let (snap, fake) = make([win("f", "Safari", fullScreen), win("b", "Warp", z2)])
+        _ = snap.greenButtonHints()
+        fake.greenButtons[WindowID("f")] = nil   // asked again, it would say nothing
+        #expect(snap.greenButtonHints() == [button(of: fullScreen)])
+    }
+}

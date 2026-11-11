@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deskman — tell your Mac where to put its windows</title>
+<meta name="description" content="Deskman is a native macOS window manager. Ask in plain words, snap to a grid it learns from you, and keep everything on your Mac. Apple's on-device model, no network calls.">
+<meta property="og:title" content="Deskman">
+<meta property="og:description" content="Tell your Mac where to put its windows, in plain words. On-device, private, and it never moves the window you are working in.">
+<meta name="theme-color" content="#0d1117">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='4' width='8' height='11' rx='2' fill='%2358a6ff'/%3E%3Crect x='2' y='17' width='8' height='11' rx='2' fill='%2358a6ff' opacity='.6'/%3E%3Crect x='12' y='4' width='18' height='24' rx='2' fill='%23a371f7'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #0b0e14; --panel: #121722; --line: #232a3a; --text: #e6e9f0; --muted: #9aa4b8;
+    --blue: #58a6ff; --violet: #a371f7; --green: #3fb950; --radius: 14px;
+    --mono: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 17px/1.6 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--blue); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+  nav { position: sticky; top: 0; z-index: 10; backdrop-filter: blur(12px);
+        background: rgba(11, 14, 20, .78); border-bottom: 1px solid var(--line); }
+  nav .wrap { display: flex; align-items: center; gap: 28px; height: 60px; }
+  nav .brand { font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 10px; }
+  nav .links { margin-left: auto; display: flex; gap: 22px; font-size: 15px; }
+  nav .links a { color: var(--muted); }
+  nav .links a:hover { color: var(--text); text-decoration: none; }
+
+  header.hero { padding: 88px 0 56px; text-align: center;
+    background: radial-gradient(900px 420px at 50% -10%, rgba(163,113,247,.22), transparent 70%),
+                radial-gradient(700px 360px at 85% 10%, rgba(88,166,255,.14), transparent 70%); }
+  .eyebrow { display: inline-block; font-size: 13px; letter-spacing: .08em; text-transform: uppercase;
+             color: var(--violet); border: 1px solid rgba(163,113,247,.4); border-radius: 999px; padding: 4px 12px; }
+  h1 { font-size: clamp(40px, 6vw, 68px); line-height: 1.05; margin: 22px 0 18px; letter-spacing: -.02em; }
+  h1 .grad { background: linear-gradient(90deg, var(--blue), var(--violet)); -webkit-background-clip: text;
+             background-clip: text; color: transparent; }
+  .lede { font-size: 20px; color: var(--muted); max-width: 660px; margin: 0 auto 32px; }
+  .cta { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 22px; border-radius: 10px;
+         font-weight: 600; font-size: 16px; border: 1px solid var(--line); color: var(--text); background: var(--panel); }
+  .btn:hover { text-decoration: none; border-color: #3a4560; }
+  .btn.primary { background: linear-gradient(135deg, #6c5ce7, #3b82f6); border-color: transparent; }
+
+  .desk { margin: 56px auto 0; max-width: 940px; border-radius: 18px; border: 1px solid var(--line);
+          background: #0f131c; box-shadow: 0 30px 80px rgba(0,0,0,.55); overflow: hidden; }
+  .desk .bar { height: 30px; display: flex; align-items: center; gap: 7px; padding: 0 14px;
+               border-bottom: 1px solid var(--line); background: #151a26; }
+  .desk .bar i { width: 11px; height: 11px; border-radius: 50%; background: #3a4258; display: block; }
+  .desk svg { display: block; width: 100%; height: auto; }
+  .caption { color: var(--muted); font-size: 14px; margin-top: 14px; }
+
+  .asks { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin: 40px auto 0; max-width: 860px; }
+  .asks span { font-family: var(--mono); font-size: 14px; color: #c9d1e3; background: var(--panel);
+               border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; }
+
+  section { padding: 84px 0; border-top: 1px solid var(--line); }
+  h2 { font-size: clamp(28px, 3.6vw, 40px); margin: 0 0 12px; letter-spacing: -.01em; }
+  .sub { color: var(--muted); max-width: 700px; margin: 0 0 40px; font-size: 18px; }
+  .grid3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 24px; }
+  .card h3 { margin: 12px 0 8px; font-size: 19px; }
+  .card p { margin: 0; color: var(--muted); font-size: 16px; }
+  .icon { width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; font-size: 20px;
+          background: rgba(88,166,255,.12); }
+
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center; }
+  @media (max-width: 820px) { .split { grid-template-columns: 1fr; } nav .links { display: none; } }
+  .split ul { padding-left: 20px; color: var(--muted); }
+  .split li { margin: 8px 0; }
+  .split li b { color: var(--text); }
+  pre.zones { font-family: var(--mono); font-size: 13px; line-height: 1.35; color: #b9c3d8; background: var(--panel);
+              border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; overflow-x: auto; margin: 0; }
+
+  .promise { background: linear-gradient(135deg, rgba(63,185,80,.10), rgba(88,166,255,.06));
+             border: 1px solid rgba(63,185,80,.35); border-radius: 18px; padding: 36px; }
+  .promise blockquote { margin: 0 0 22px; font-size: 22px; font-weight: 600; line-height: 1.4; }
+  .never { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px 28px;
+           list-style: none; padding: 0; margin: 0; color: var(--muted); }
+  .never li::before { content: "✕"; color: var(--green); font-weight: 700; margin-right: 10px; }
+
+  .kbd-table { width: 100%; border-collapse: collapse; font-size: 16px; }
+  .kbd-table td { padding: 12px 8px; border-bottom: 1px solid var(--line); color: var(--muted); }
+  .kbd-table td:first-child { white-space: nowrap; width: 1%; padding-right: 28px; }
+  kbd { font-family: var(--mono); font-size: 13px; color: var(--text); background: #1b2131; border: 1px solid #2d3548;
+        border-bottom-width: 2px; border-radius: 6px; padding: 2px 7px; margin-right: 3px; }
+
+  pre.code { font-family: var(--mono); font-size: 14px; background: #0a0d13; border: 1px solid var(--line);
+             border-radius: var(--radius); padding: 20px 22px; overflow-x: auto; color: #d6deeb; margin: 0 0 20px; }
+  pre.code .c { color: #637087; }
+  .reqs { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 26px; }
+  .reqs span { font-size: 14px; border: 1px solid var(--line); border-radius: 999px; padding: 5px 14px; color: var(--muted); }
+
+  footer { border-top: 1px solid var(--line); padding: 40px 0 60px; color: var(--muted); font-size: 14px; }
+  footer .wrap { display: flex; gap: 20px; flex-wrap: wrap; justify-content: space-between; }
+
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <a class="brand" href="#">
+      <svg width="22" height="22" viewBox="0 0 32 32" aria-hidden="true"><rect x="2" y="4" width="8" height="11" rx="2" fill="#58a6ff"/><rect x="2" y="17" width="8" height="11" rx="2" fill="#58a6ff" opacity=".6"/><rect x="12" y="4" width="18" height="24" rx="2" fill="#a371f7"/></svg>
+      Deskman
+    </a>
+    <div class="links">
+      <a href="#features">Features</a>
+      <a href="#hover">Expand on hover</a>
+      <a href="#promise">The promise</a>
+      <a href="#privacy">Privacy</a>
+      <a href="#install">Install</a>
+      <a href="https://github.com/weave-registry/deskman">GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap">
+    <span class="eyebrow">Native macOS window manager · on-device AI</span>
+    <h1>Tell your Mac where to put<br><span class="grad">its windows, in plain words.</span></h1>
+    <p class="lede">Apple's on-device model understands the request. Deskman moves the windows.
+      It learns how you like your desk, and nothing leaves your Mac.</p>
+    <div class="cta">
+      <a class="btn primary" href="#install">Get started</a>
+      <a class="btn" href="https://github.com/weave-registry/deskman">View on GitHub →</a>
+    </div>
+
+    <div class="desk" role="img" aria-label="A desktop in Deskman's five-zone grid. The mouse rests on the lower left window, which grows to three quarters of the column while the window above stays visible.">
+      <div class="bar"><i></i><i></i><i></i></div>
+      <svg viewBox="0 0 1000 540" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1d2a44"/><stop offset="1" stop-color="#172036"/></linearGradient>
+          <linearGradient id="g2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2a2048"/><stop offset="1" stop-color="#1c1733"/></linearGradient>
+        </defs>
+        <!-- zone 3: the main window -->
+        <rect x="262" y="12" width="476" height="516" rx="10" fill="url(#g2)" stroke="#5b4a92"/>
+        <text x="500" y="270" text-anchor="middle" fill="#a99ad6" font-size="22" font-family="-apple-system, sans-serif">zone 3 · your main window</text>
+        <!-- zones 4 and 5 -->
+        <rect x="750" y="12" width="238" height="252" rx="10" fill="url(#g1)" stroke="#2f4670"/>
+        <rect x="750" y="276" width="238" height="252" rx="10" fill="url(#g1)" stroke="#2f4670"/>
+        <text x="869" y="144" text-anchor="middle" fill="#6f8fc4" font-size="20" font-family="-apple-system, sans-serif">4</text>
+        <text x="869" y="408" text-anchor="middle" fill="#6f8fc4" font-size="20" font-family="-apple-system, sans-serif">5</text>
+        <!-- zones 1 and 2: the stacked pair that expands on hover -->
+        <rect x="12" y="12" width="238" height="252" rx="10" fill="url(#g1)" stroke="#2f4670">
+          <animate attributeName="height" values="252;252;120;120;252;252" keyTimes="0;.2;.3;.7;.8;1" dur="6s" repeatCount="indefinite"/>
+        </rect>
+        <rect x="12" y="276" width="238" height="252" rx="10" fill="url(#g1)" stroke="#58a6ff" stroke-width="1">
+          <animate attributeName="y" values="276;276;144;144;276;276" keyTimes="0;.2;.3;.7;.8;1" dur="6s" repeatCount="indefinite"/>
+          <animate attributeName="height" values="252;252;384;384;252;252" keyTimes="0;.2;.3;.7;.8;1" dur="6s" repeatCount="indefinite"/>
+          <animate attributeName="stroke-width" values="1;1;2.5;2.5;1;1" keyTimes="0;.2;.3;.7;.8;1" dur="6s" repeatCount="indefinite"/>
+        </rect>
+        <text x="131" y="60" text-anchor="middle" fill="#6f8fc4" font-size="20" font-family="-apple-system, sans-serif">1</text>
+        <text x="131" y="420" text-anchor="middle" fill="#9cc4ff" font-size="20" font-family="-apple-system, sans-serif">2
+          <animate attributeName="y" values="420;420;340;340;420;420" keyTimes="0;.2;.3;.7;.8;1" dur="6s" repeatCount="indefinite"/>
+        </text>
+        <!-- the mouse -->
+        <g>
+          <animateTransform attributeName="transform" type="translate" values="520,120; 150,400; 150,400; 150,400; 520,120; 520,120"
+                            keyTimes="0;.15;.3;.68;.8;1" dur="6s" repeatCount="indefinite"/>
+          <path d="M0 0 L0 22 L6 17 L10 26 L14 24 L10 15 L17 15 Z" fill="#fff" stroke="#000" stroke-width="1.2"/>
+        </g>
+      </svg>
+    </div>
+    <p class="caption">Rest the mouse on a stacked window: it takes three quarters of the column, the one above stays visible, and both snap back when you move on.</p>
+
+    <div class="asks">
+      <span>"Safari and Notes side by side"</span>
+      <span>"put this window on the left third"</span>
+      <span>"move this to my other screen"</span>
+      <span>"open Calendar on the right half"</span>
+      <span>"organize my windows"</span>
+    </div>
+  </div>
+</header>
+
+<section id="features">
+  <div class="wrap">
+    <h2>Three parts that work together</h2>
+    <p class="sub">An assistant for the requests you can say in a sentence, a grid for the ones you do a hundred times a day,
+      and a memory so you do fewer of either.</p>
+    <div class="grid3">
+      <div class="card">
+        <div class="icon">💬</div>
+        <h3>An assistant</h3>
+        <p>Type a request in the floating panel (<kbd>⌃</kbd><kbd>⌥</kbd><kbd>Space</kbd>). The on-device model picks a tool, and Deskman makes the move. "This window" means the one you were using: the panel never takes focus.</p>
+      </div>
+      <div class="card">
+        <div class="icon">▦</div>
+        <h3>A grid</h3>
+        <p>Five snap zones. Smart Arrange fills them for you, or you fill them with <kbd>⌃</kbd><kbd>⌘</kbd><kbd>1</kbd>…<kbd>5</kbd> or by dragging a window onto one. Deskman learns your own grid from your moves and keeps its zones equal.</p>
+      </div>
+      <div class="card">
+        <div class="icon">🧠</div>
+        <h3>A memory</h3>
+        <p>Deskman learns how you arrange your desk and offers it back. It names each window by what it is for, and keeps the windows of one project together.</p>
+      </div>
+      <div class="card">
+        <div class="icon">✨</div>
+        <h3>Smart Arrange</h3>
+        <p>Your browser goes in the middle and the windows you use most go next to it. A window that is already in a zone stays there. No window ever gets smaller than 700 × 400 pt, and every arrange can be undone.</p>
+      </div>
+      <div class="card">
+        <div class="icon">🔁</div>
+        <h3>Keep Arranged</h3>
+        <p>Turn it on and Smart Arrange runs every time your windows change. It waits until things settle, and it holds off for as long as you are working in a window.</p>
+      </div>
+      <div class="card">
+        <div class="icon">🗺️</div>
+        <h3>The desktop map</h3>
+        <p>See every window, what Smart Arrange would do, and what Deskman has learned, in one picture. The decision log says why it did each thing.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="hover">
+  <div class="wrap split">
+    <div>
+      <h2>Expand on hover</h2>
+      <p class="sub" style="margin-bottom:18px">Two windows stacked in a column each get half the height, which is often too little to read.
+        Rest the mouse on one and it gets the room.</p>
+      <ul>
+        <li><b>At least three quarters</b> of the column goes to the window under the mouse.</li>
+        <li><b>Nothing is hidden.</b> The windows above and below shrink to strips of at least 120 pt and stay in place.</li>
+        <li><b>Rest on a strip</b> and the room moves to that window instead.</li>
+        <li><b>Move away and it snaps back</b>, unless you moved or resized a window meanwhile. A window you touched stays where you put it.</li>
+        <li><b>It is a hover, not a habit.</b> It pins nothing and teaches the learner nothing. It never runs during a drag or a meeting, or for apps you told Deskman to leave alone.</li>
+      </ul>
+    </div>
+    <pre class="zones" aria-label="Before and after a hover">  at rest              mouse on the lower one
+┌──────────────┐       ┌──────────────┐
+│              │       │   window 1   │  ← still visible
+│   window 1   │       ├──────────────┤
+│              │       │              │
+├──────────────┤       │              │
+│              │       │   window 2   │  ← ¾ of the column
+│   window 2 ▲ │       │      ▲       │
+│              │       │              │
+└──────────────┘       └──────────────┘</pre>
+  </div>
+</section>
+
+<section id="promise">
+  <div class="wrap">
+    <div class="promise">
+      <blockquote>On its own, Deskman never minimizes, closes or hides a window,
+        and never moves the window you are working in.</blockquote>
+      <p class="sub" style="margin-bottom:22px">Every action passes through one gateway, which records who asked: you, or Deskman on its own. Whatever you ask for gets done. When Deskman acts on its own:</p>
+      <ul class="never">
+        <li>never minimizes, closes, hides or goes full screen</li>
+        <li>never moves the window you are working in</li>
+        <li>never touches a meeting app's window</li>
+        <li>moves nothing at all while a meeting is on</li>
+        <li>leaves alone the apps you choose</li>
+        <li>never makes windows overlap, or smaller than 700 × 400</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="privacy">
+  <div class="wrap split">
+    <div>
+      <h2>Nothing leaves your Mac</h2>
+      <p class="sub" style="margin-bottom:0">The model runs on the device, through Apple's FoundationModels framework, and Deskman makes no network calls.
+        Your arrangements live in owner-only files in <code>~/Library/Application Support/Deskman</code>.
+        <b>Forget My Activity</b> erases them whenever you like.</p>
+    </div>
+    <div>
+      <table class="kbd-table">
+        <tr><td><kbd>⌃</kbd><kbd>⌥</kbd><kbd>Space</kbd></td><td>Show or hide the panel</td></tr>
+        <tr><td><kbd>⌃</kbd><kbd>⌘</kbd><kbd>1</kbd>…<kbd>5</kbd></td><td>Snap the front window to a zone</td></tr>
+        <tr><td><kbd>⌃</kbd><kbd>⌘</kbd><kbd>F</kbd></td><td>Fill the screen</td></tr>
+        <tr><td><kbd>⌃</kbd><kbd>⌥</kbd><kbd>F</kbd></td><td>Leave the front app alone, or not</td></tr>
+        <tr><td><kbd>⌃</kbd><kbd>⌥</kbd><kbd>D</kbd></td><td>Turn drag-to-snap on or off</td></tr>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="install">
+  <div class="wrap">
+    <h2>Install</h2>
+    <div class="reqs">
+      <span>macOS 26+ on Apple silicon</span>
+      <span>Apple Intelligence on</span>
+      <span>Xcode 26 (Swift 6.2)</span>
+      <span>Accessibility permission</span>
+    </div>
+    <pre class="code"><span class="c"># once: a local signing certificate, so macOS keeps the Accessibility permission across rebuilds</span>
+scripts/make-signing-identity.sh
+<span class="c"># build and open</span>
+scripts/build-app.sh
+open build/Deskman.app</pre>
+    <p class="sub" style="margin:0">Click <b>Allow…</b> in the panel and turn on Deskman under System Settings → Privacy &amp; Security → Accessibility.
+      Run Deskman <i>or</i> Hammerspoon's zone manager, not both, since they use the same keys.
+      The <a href="https://github.com/weave-registry/deskman#readme">README</a> covers everything else, and every design decision is written down as an
+      <a href="https://github.com/weave-registry/deskman/tree/main/docs/adrs">ADR</a>.</p>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>Deskman · a native macOS window manager, written in Swift 6 with a hexagonal architecture.</span>
+    <span><a href="https://github.com/weave-registry/deskman">github.com/weave-registry/deskman</a></span>
+  </div>
+</footer>
+
+</body>
+</html>

@@ -172,6 +172,7 @@ You can name a window by its app, its title, or the name the model gave it
 | **Open Decision Log** <kbd>⌘L</kbd> | Opens the [decision log](#why-did-it-do-that-the-decision-log) in Console. |
 | **Open Deskman** | The panel, on its Ask tab. |
 | **Drag to Snap** | Turns drag-to-snap on or off. The hotkeys still work when it is off. |
+| **Green Button Puts Window Back in Its Zone** | When a window has grown out of its zone and covers other windows, its green title-bar button puts it back in its zone instead of going full screen. A window in its zone keeps the usual green button. Option-click still zooms. On by default. |
 | **Expand Stacked Window on Hover** | Rest the mouse on one of two (or more) stacked windows and it takes at least three quarters of the height. The others stay visible above or below it, and everything goes back when the mouse leaves. On by default. |
 | **Apps Deskman Leaves Alone** | Apps whose windows Deskman never moves on its own. One item adds the front app. |
 | **Bound Projects** | The projects you bound. A click unbinds one. Shows only when a project is bound. |
@@ -204,6 +205,11 @@ A line that has nothing to show says "Nothing yet". The **On Screen** switch dra
 | <kbd>⌃</kbd><kbd>⌥</kbd><kbd>D</kbd> | Turn drag-to-snap on or off |
 
 **Drag to snap:** drag a window by its title bar and drop it on a zone. Hold <kbd>⌥</kbd> to drop it freely.
+
+**The green button:** a window that has grown past its zone over other windows (full height, full screen, a dragged
+edge) goes back to the zone it came from when you click its green button, or to the zone it covers most. The click
+never reaches macOS, so the window does not go full screen. A window in its zone, or covering nothing, keeps the
+usual green button; hold <kbd>⌥</kbd> to zoom as macOS does (ADR-2611111100).
 
 **Expand on hover:** when windows are stacked in one column, rest the mouse on one for a moment. It grows to at
 least three quarters of the column, and the windows above and below shrink to strips of at least 120 pt, so nothing

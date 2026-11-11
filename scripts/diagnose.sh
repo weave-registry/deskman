@@ -3,7 +3,7 @@
 # terminal, the binary has the terminal's permissions, and most terminals have no
 # Accessibility permission, so it sees no windows. `open` starts it as the app,
 # with the app's own permission; the output comes back through a file.
-#   scripts/diagnose.sh speed | bindings | names | terminals | arrange | outline | menu
+#   scripts/diagnose.sh speed | bindings | names | terminals | arrange | outline | menu | green
 set -euo pipefail
 cd "$(dirname "$0")/.."
 what=${1:?usage: scripts/diagnose.sh bindings|names|terminals|arrange|outline|menu|speed}

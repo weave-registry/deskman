@@ -86,6 +86,65 @@ import DeskmanPorts
         return placeWithPartners(w, in: zones[i], zones: zones)
     }
 
+    // MARK: The green button (ADR-2611111100)
+
+    /// The place each window last sat in.
+    private var lastPlace: [WindowID: Rect] = [:]
+    /// The green button is in a window's top-left corner: a click further in is never on it.
+    static let buttonCorner = (width: 140.0, height: 60.0)
+
+    public func observe() {
+        let displays = control.displays()
+        let visible = control.windows().filter(\.isVisible)
+        for w in visible {
+            guard let d = Displays.containing(w.frame, in: displays),
+                  let p = ZoneReturn.place(of: w.frame, in: ZoneReturn.places(zones(on: d))) else { continue }
+            lastPlace[w.id] = p
+        }
+        // Forget windows that are gone, so the memory does not grow forever.
+        if lastPlace.count > 200 {
+            let ids = Set(control.windows().map(\.id))
+            lastPlace = lastPlace.filter { ids.contains($0.key) }
+        }
+    }
+
+    public func greenButtonClaim(at point: Point) -> WindowID? {
+        guard settings?.greenButton ?? true else { return nil }
+        let all = control.windows()
+        // Front to back: the click is the front window's. Cheap tests first; this runs while the click waits.
+        guard let under = all.first(where: { $0.isVisible && $0.frame.contains(point) }),
+              point.x - under.frame.minX < Self.buttonCorner.width, point.y - under.frame.minY < Self.buttonCorner.height,
+              !(settings?.isFloating(under.app) ?? false), !MeetingApps.contains(under.app),
+              !MeetingApps.inMeeting(all) else { return nil }
+        // The button first: its read gives up fast on an app that does not answer, so a hung app cannot hold the click.
+        guard let button = control.greenButtonFrame(of: under.id), button.contains(point) else { return nil }
+        // The list may be a second old (ADR-2610121200): judge the window by its frame now.
+        let fresh = control.frame(of: under.id) ?? under.frame
+        let w = WindowSnapshot(id: under.id, app: under.app, title: under.title, frame: fresh, isMinimized: false)
+        guard let d = Displays.containing(fresh, in: control.displays()),
+              ZoneReturn.isOutOfZone(w, among: all, places: ZoneReturn.places(zones(on: d))) else { return nil }
+        return w.id
+    }
+
+    public func returnToZone(_ id: WindowID) -> CommandOutcome {
+        guard let listed = control.windows().first(where: { $0.id == id }) else {
+            return .failed("That window is gone.")
+        }
+        let frame = control.frame(of: id) ?? listed.frame
+        let displays = control.displays()
+        guard let d = Displays.containing(frame, in: displays) else { return .failed("\(listed.app) is on no display.") }
+        let zones = zones(on: d)
+        // A remembered place on another display, or from a grid no longer in use, is no place now.
+        let remembered = lastPlace[id].flatMap { ZoneReturn.place(of: $0, in: ZoneReturn.places(zones)) }
+        guard let target = ZoneReturn.target(for: frame, zones: zones, remembered: remembered) else {
+            return .failed("There is no zone for \(listed.app) on this display.")
+        }
+        let w = WindowSnapshot(id: listed.id, app: listed.app, title: listed.title, frame: frame, isMinimized: listed.isMinimized)
+        let outcome = place(w, in: target, how: "the green button")
+        if outcome.succeeded { lastPlace[id] = target }
+        return outcome.succeeded ? .ok("Put \(listed.app) back in its zone.") : outcome
+    }
+
     private func frontmost() -> (WindowSnapshot, Display)? {
         let displays = control.displays()
         guard let id = control.frontmostWindowID(),
@@ -106,9 +165,9 @@ import DeskmanPorts
         return moved.isEmpty ? outcome : .ok("Snapped \(w.app), with \(moved.map(\.app).joined(separator: ", ")) beside it.")
     }
 
-    private func place(_ w: WindowSnapshot, in frame: Rect) -> CommandOutcome {
+    private func place(_ w: WindowSnapshot, in frame: Rect, how: String = "a snap hotkey or a drag") -> CommandOutcome {
         do {
-            try control.acting(for: .person("a snap hotkey or a drag")) {
+            try control.acting(for: .person(how)) {
                 if w.isMinimized { try control.perform(.restore, on: w.id) }
                 try control.setFrame(frame, of: w.id)
             }

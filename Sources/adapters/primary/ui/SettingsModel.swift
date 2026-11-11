@@ -8,6 +8,7 @@ import DeskmanPorts
     public private(set) var floatingApps: [String] = []
     public private(set) var dragSnap = true
     public private(set) var hoverExpand = true
+    public private(set) var greenButton = true
     public private(set) var problem: String?
 
     private let port: any SettingsPort
@@ -39,6 +40,7 @@ import DeskmanPorts
     public func setFloating(_ app: String, _ on: Bool) { run(port.setFloating(app, on)) }
     public func setDragSnap(_ on: Bool) { run(port.setDragSnap(on)) }
     public func setHoverExpand(_ on: Bool) { run(port.setHoverExpand(on)) }
+    public func setGreenButton(_ on: Bool) { run(port.setGreenButton(on)) }
 
     private func run(_ outcome: CommandOutcome) {
         refresh()
@@ -49,6 +51,7 @@ import DeskmanPorts
         floatingApps = port.floatingApps
         dragSnap = port.dragSnap
         hoverExpand = port.hoverExpand
+        greenButton = port.greenButton
         problem = port.problem
     }
 }

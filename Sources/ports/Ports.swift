@@ -27,6 +27,8 @@
     func requestTrust()
     /// Run `body` with every action in it attributed to `origin` (the gateway, ADR-2610121800).
     func acting<T>(for origin: ActionOrigin, _ body: () throws -> T) rethrows -> T
+    /// Where the window's green title-bar button is now (ADR-2611111100). Nil without one, or in native full screen.
+    func greenButtonFrame(of id: WindowID) -> Rect?
 }
 
 extension WindowControl {
@@ -35,6 +37,9 @@ extension WindowControl {
 
     /// From `windows()`, for controls whose list is never stale.
     public func frame(of id: WindowID) -> Rect? { windows().first { $0.id == id }?.frame }
+
+    /// A control that cannot see title-bar buttons has none to report.
+    public func greenButtonFrame(of id: WindowID) -> Rect? { nil }
 }
 
 /// Names windows by what they are for (ADR-2610101542). Slow; never in a command's path.
@@ -111,6 +116,15 @@ extension WindowControl {
     func dragTarget(at point: Point) -> Int?
     /// The mouse went up. Nil when nothing was snapped.
     func endDrag(at point: Point, bypass: Bool) -> CommandOutcome?
+
+    // The green button (ADR-2611111100).
+    /// Note the zone each window sits in. Call it every second.
+    func observe()
+    /// The window whose green button is under `point`, when Deskman takes the click: the window has grown out of
+    /// its zone over another. Nil leaves the click to macOS. Fast: it runs while the click waits.
+    func greenButtonClaim(at point: Point) -> WindowID?
+    /// Put a claimed window back in its zone.
+    func returnToZone(_ id: WindowID) -> CommandOutcome
 }
 
 /// What the mouse may do to a stack of windows (ADR-2611111000). Points are top-left, y down.
@@ -137,6 +151,9 @@ extension WindowControl {
     /// Expand on Hover (ADR-2611111000).
     var hoverExpand: Bool { get }
     func setHoverExpand(_ on: Bool) -> CommandOutcome
+    /// The green button puts a grown window back in its zone (ADR-2611111100).
+    var greenButton: Bool { get }
+    func setGreenButton(_ on: Bool) -> CommandOutcome
     /// Why the saved preferences could not be read, until the next change saves good ones.
     var problem: String? { get }
 }

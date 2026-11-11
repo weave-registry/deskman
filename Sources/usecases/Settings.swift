@@ -103,6 +103,14 @@ import DeskmanPorts
                        : "Expand on Hover is off.")
     }
 
+    public var greenButton: Bool { current.greenButton }
+
+    public func setGreenButton(_ on: Bool) -> CommandOutcome {
+        current.greenButton = on
+        return save(on ? "The green button puts a window that has grown over others back in its zone."
+                       : "The green button does what macOS does.")
+    }
+
     private func save(_ done: String) -> CommandOutcome {
         do {
             try store.save(current)

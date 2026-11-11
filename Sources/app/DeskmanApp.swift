@@ -26,6 +26,7 @@ import DeskmanUI
     private var snapKeys: SnapHotKeys?
     private var dragSnap: DragSnap?
     private var hoverWatch: HoverWatch?
+    private var greenButtonWatch: GreenButtonWatch?
     let hover: HoverService
     let snap: SnapService
     let settings: SettingsModel
@@ -86,6 +87,8 @@ import DeskmanUI
         // The stacked window under the mouse gets the room (ADR-2611111000).
         hover = HoverService(control: control, intents: intents, settings: preferences)
         hoverWatch = interactive ? HoverWatch(port: hover) : nil
+        // The green button puts a grown window back in its zone (ADR-2611111100).
+        greenButtonWatch = interactive ? GreenButtonWatch(port: snap, report: { [learning] in learning.note($0.message) }) : nil
         settings = SettingsModel(port: preferences, keys: interactive, report: { [learning] in learning.note($0.message) })
         if interactive, dragSnap == nil { NSLog("Deskman: macOS refused the mouse event tap; drag-to-snap is off.") }
     }
@@ -94,6 +97,7 @@ import DeskmanUI
     var snapKeysRegistered: Int { snapKeys?.registered ?? 0 }
     var dragSnapOn: Bool { dragSnap != nil }
     var hoverWatchOn: Bool { hoverWatch != nil }
+    var greenButtonOn: Bool { greenButtonWatch != nil }
 }
 
 /// Observable, because the menu is built before `root` exists. Without it, the
@@ -116,7 +120,7 @@ import DeskmanUI
         self.root = root
         // A diagnose that needs windows and cannot see them fails loudly, not with "no windows".
         let needsWindows = ["--diagnose-speed", "--diagnose-bindings", "--diagnose-names", "--diagnose-arrange",
-                            "--diagnose-terminals"]
+                            "--diagnose-terminals", "--diagnose-green"]
         if CommandLine.arguments.contains(where: needsWindows.contains), !root.control.isTrusted {
             print("FAILED: " + SmartArranger.untrusted)
             exit(1)
@@ -126,10 +130,26 @@ import DeskmanUI
             let status = root.status
             print("windowControlTrusted=\(status.windowControlTrusted) assistant=\(status.assistant)")
             print("bundle=\(Bundle.main.bundlePath) pid=\(ProcessInfo.processInfo.processIdentifier)")
-            print("snapKeys=\(root.snapKeysRegistered)/6 dragSnap=\(root.dragSnapOn) hoverWatch=\(root.hoverWatchOn) settingsKeys=\(root.settings.registered)/2")
+            print("snapKeys=\(root.snapKeysRegistered)/6 dragSnap=\(root.dragSnapOn) hoverWatch=\(root.hoverWatchOn) greenButton=\(root.greenButtonOn) settingsKeys=\(root.settings.registered)/2")
             print("dragSnapSwitch=\(root.settings.dragSnap) leftAlone=\(root.settings.floatingApps.joined(separator: ", "))")
             if let p = root.settings.problem { print("problem: \(p)") }
             exit(0)
+        }
+        // `--diagnose-green`: each visible window's green button, and whether Deskman would take its click
+        // (ADR-2611111100). Clicks nothing, moves nothing.
+        if CommandLine.arguments.contains("--diagnose-green") {
+            Task { @MainActor in
+                let all = await root.accessibility.readFresh()
+                for w in all where w.isVisible {
+                    let b = root.control.greenButtonFrame(of: w.id)
+                    let at = b.map { Point(x: $0.midX, y: $0.midY) }
+                    let claim = at.flatMap { root.snap.greenButtonClaim(at: $0) }
+                    print("\(w.app) | frame \(w.frame) | green button \(b.map(\.description) ?? "none")"
+                          + " | click taken: \(claim == w.id ? "yes, back to its zone" : "no, macOS's")")
+                }
+                exit(0)
+            }
+            return
         }
         // `--diagnose-arrange`: print the plan Smart Arrange would carry out. Moves nothing.
         // `--diagnose-names`: ask the model to name every window, print the names, quit.
@@ -331,6 +351,8 @@ private struct SettingsMenu: View {
         Toggle("Drag to Snap  ⌃⌥D", isOn: Binding(get: { settings.dragSnap }, set: { settings.setDragSnap($0) }))
         Toggle("Expand Stacked Window on Hover", isOn: Binding(get: { settings.hoverExpand },
                                                                set: { settings.setHoverExpand($0) }))
+        Toggle("Green Button Puts Window Back in Its Zone", isOn: Binding(get: { settings.greenButton },
+                                                                         set: { settings.setGreenButton($0) }))
         Menu("Apps Deskman Leaves Alone") {
             Button("Leave the Front App Alone, or Not  ⌃⌥F") { settings.toggleFrontmost() }
             Divider()

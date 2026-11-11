@@ -154,6 +154,20 @@ import DeskmanPorts
         return Self.frame(of: element)
     }
 
+    /// The green button's frame (ADR-2611111100). Asked while a click waits, so every read here gives up
+    /// after 0.15 s. Nil in native full screen: there the button leaves full screen, as macOS does.
+    public func greenButtonFrame(of id: WindowID) -> Rect? {
+        guard let element = registry[id]?.element else { return nil }
+        AXUIElementSetMessagingTimeout(element, 0.15)
+        // 0 puts the element back on the system's timeout, for every other call.
+        defer { AXUIElementSetMessagingTimeout(element, 0) }
+        if let full: Bool = Self.copy(element, "AXFullScreen"), full { return nil }
+        guard let button: AXUIElement = Self.copy(element, kAXZoomButtonAttribute)
+                ?? Self.copy(element, kAXFullScreenButtonAttribute) else { return nil }
+        AXUIElementSetMessagingTimeout(button, 0.15)
+        return Self.frame(of: button)
+    }
+
     public func displays() -> [Display] {
         let screens = NSScreen.screens
         guard let primary = screens.first else { return [] }

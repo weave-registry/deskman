@@ -58,6 +58,7 @@ import DeskmanPorts
 
     public func beginDrag(at point: Point) {
         confirmed = false
+        armed = nil
         // Front to back: the first window under the mouse is the one it grabbed.
         drag = nil
         // Drag-to-snap off, or a floating app under the mouse: no drag to watch, so no overlay and no snap.
@@ -83,13 +84,51 @@ import DeskmanPorts
     }
 
     public func endDrag(at point: Point, bypass: Bool) -> CommandOutcome? {
-        defer { drag = nil; confirmed = false }
+        defer { drag = nil; confirmed = false; armed = nil }
         // Without a confirmed drag, a last look: a quick flick may end before the first check.
         guard let d = drag, !bypass, confirmed || confirmDrag() else { return nil }
         let zones = snapZones(at: point)
         guard let i = ZoneGenerator.zone(at: point, in: zones),
               let w = control.windows().first(where: { $0.id == d.id }) else { return nil }
+        if let split = dragSplit(at: point), let a = armed,
+           let other = control.windows().first(where: { $0.id == a.other }) {
+            return placeSplit(w, other, split)
+        }
         return placeWithPartners(w, in: zones[i], zones: zones)
+    }
+
+    // MARK: Splitting a taken zone (ADR-2611121000)
+
+    /// The zone a rest armed, and the window sitting in it.
+    private var armed: (zone: Rect, other: WindowID)?
+
+    public func dragRested(at point: Point) -> ZoneSplit? {
+        armed = nil
+        guard confirmed, let d = drag else { return nil }
+        let zones = snapZones(at: point)
+        guard let i = ZoneGenerator.zone(at: point, in: zones) else { return nil }
+        let zone = zones[i]
+        // Front to back: the front window sitting in the zone is the one that moves over.
+        guard let other = control.windows().first(where: { w in
+            w.id != d.id && w.isVisible && w.isOnCurrentDesktop && eligible(w)
+                && ZoneReturn.place(of: w.frame, in: [zone]) != nil
+        }), ZoneSplit.split(zone, for: d.frame, at: point) != nil else { return nil }
+        armed = (zone, other.id)
+        return dragSplit(at: point)
+    }
+
+    public func dragSplit(at point: Point) -> ZoneSplit? {
+        guard let a = armed, let d = drag else { return nil }
+        guard a.zone.contains(point) else { armed = nil; return nil }
+        return ZoneSplit.split(a.zone, for: d.frame, at: point)
+    }
+
+    private func placeSplit(_ w: WindowSnapshot, _ other: WindowSnapshot, _ split: ZoneSplit) -> CommandOutcome {
+        let how = "splitting a zone"
+        let first = place(w, in: split.dragged, how: how)
+        guard first.succeeded else { return first }
+        let second = place(other, in: split.other, how: how)
+        return second.succeeded ? .ok("Split the zone: \(w.app) beside \(other.app).") : second
     }
 
     // MARK: The green button (ADR-2611111100)

@@ -28,13 +28,21 @@ import DeskmanPorts
 
 /// Drag a window and drop it on a zone. A listen-only mouse event tap; Option held
 /// while letting go skips the snap. A click or a resize never snaps (SnapService).
+/// Resting the drag on a zone another window holds splits it (ADR-2611121000).
 @MainActor public final class DragSnap {
+    /// How long a drag must stay put over a taken zone before it splits: passing over is not choosing.
+    static let dwell = 0.5
+    /// Moves under this many points, in total, still count as resting.
+    static let jitter = 4.0
+
     private let port: any SnapPort
     private var tap: CFMachPort?
+    private var timer: Timer?
     private let overlay = SnapOverlay()
     private var down: Point?
     private var checked = false
     private var confirmed = false
+    private var rest: (at: Point, since: Date, said: Bool)?
 
     /// Nil when macOS refuses the event tap (no Accessibility permission).
     public init?(port: any SnapPort) {
@@ -53,6 +61,18 @@ import DeskmanPorts
         let source = CFMachPortCreateRunLoopSource(nil, tap, 0)
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
+        let timer = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.checkRest() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        self.timer = timer
+    }
+
+    /// A drag that has stayed put for `dwell` is said once; a split it arms is drawn.
+    private func checkRest() {
+        guard confirmed, down != nil, let r = rest, !r.said, Date().timeIntervalSince(r.since) >= Self.dwell else { return }
+        rest?.said = true
+        if let split = port.dragRested(at: r.at) { overlay.showSplit(split) }
     }
 
     private func handle(_ type: CGEventType, _ event: CGEvent) {
@@ -65,6 +85,7 @@ import DeskmanPorts
             down = p
             checked = false
             confirmed = false
+            rest = nil
             port.beginDrag(at: p)
         case .leftMouseDragged:
             guard let d = down else { return }
@@ -77,10 +98,18 @@ import DeskmanPorts
                     if self.confirmed { self.overlay.show(self.port.snapZones(at: p)) }
                 }
             }
-            if confirmed { overlay.highlight(port.dragTarget(at: p)) }
+            guard confirmed else { return }
+            if let r = rest, abs(r.at.x - p.x) + abs(r.at.y - p.y) <= Self.jitter {} else { rest = (p, Date(), false) }
+            if let split = port.dragSplit(at: p) {
+                overlay.showSplit(split)
+            } else {
+                overlay.showSplit(nil)
+                overlay.highlight(port.dragTarget(at: p))
+            }
         case .leftMouseUp:
             guard down != nil else { return }
             down = nil
+            rest = nil
             overlay.hide()
             _ = port.endDrag(at: p, bypass: event.flags.contains(.maskAlternate))
         default:
@@ -95,10 +124,14 @@ import DeskmanPorts
     @Observable final class State {
         var zones: [CGRect] = []
         var active: Int?
+        /// A split zone's two pieces, in the panel's space: the dragged window's, then the one that moves over.
+        var split: (dragged: CGRect, other: CGRect)?
     }
 
     private let panel: NSPanel
     private let state = State()
+    /// The panel's top-left, in the hexagon's space.
+    private var origin = Point(x: 0, y: 0)
 
     init() {
         panel = NSPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: true)
@@ -118,8 +151,10 @@ import DeskmanPorts
         let area = Rect(x: x0, y: y0, width: x1 - x0, height: y1 - y0)
         let appKit = CoordinateSpace.appKit(fromTopLeft: area, primaryDisplayHeight: Double(primary.frame.height))
         panel.setFrame(NSRect(x: appKit.x, y: appKit.y, width: appKit.width, height: appKit.height), display: false)
-        state.zones = zones.map { CGRect(x: $0.x - x0, y: $0.y - y0, width: $0.width, height: $0.height) }
+        origin = Point(x: x0, y: y0)
+        state.zones = zones.map { local($0) }
         state.active = nil
+        state.split = nil
         panel.orderFrontRegardless()
     }
 
@@ -127,9 +162,20 @@ import DeskmanPorts
         if state.active != zone { state.active = zone }
     }
 
+    func showSplit(_ split: ZoneSplit?) {
+        let pieces = split.map { (dragged: local($0.dragged), other: local($0.other)) }
+        if state.split?.dragged != pieces?.dragged || state.split?.other != pieces?.other { state.split = pieces }
+        if pieces != nil, state.active != nil { state.active = nil }
+    }
+
     func hide() {
         panel.orderOut(nil)
         state.zones = []
+        state.split = nil
+    }
+
+    private func local(_ r: Rect) -> CGRect {
+        CGRect(x: r.x - origin.x, y: r.y - origin.y, width: r.width, height: r.height)
     }
 }
 
@@ -148,7 +194,22 @@ private struct SnapOverlayView: View {
                     .frame(width: z.width - 12, height: z.height - 12)
                     .position(x: z.midX, y: z.midY)
             }
+            if let split = state.split {
+                piece(split.other, fill: .blue, opacity: 0.18, dashed: true)
+                piece(split.dragged, fill: .green, opacity: 0.30, dashed: false)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    /// One piece of a split zone: green for the dragged window, dashed for the one that moves over.
+    private func piece(_ r: CGRect, fill: Color, opacity: Double, dashed: Bool) -> some View {
+        RoundedRectangle(cornerRadius: 12)
+            .fill(fill.opacity(opacity))
+            .overlay(RoundedRectangle(cornerRadius: 12)
+                .strokeBorder((dashed ? Color.white : Color.green).opacity(0.9),
+                              style: StrokeStyle(lineWidth: 3, dash: dashed ? [10, 6] : [])))
+            .frame(width: r.width - 12, height: r.height - 12)
+            .position(x: r.midX, y: r.midY)
     }
 }

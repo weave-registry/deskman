@@ -205,6 +205,9 @@ A line that has nothing to show says "Nothing yet". The **On Screen** switch dra
 | <kbd>⌃</kbd><kbd>⌥</kbd><kbd>D</kbd> | Turn drag-to-snap on or off |
 
 **Drag to snap:** drag a window by its title bar and drop it on a zone. Hold <kbd>⌥</kbd> to drop it freely.
+Drag onto a zone that already holds a window and hold still for half a second, and the zone splits in two: a tall
+window goes beside the one there, a wide one above or below it, on the side your mouse is on. Your window keeps its own
+width (or height), and the other window takes the rest. A split never leaves a piece under 700 × 400 pt.
 
 **The green button:** a window that has grown past its zone over other windows (full height, full screen, a dragged
 edge) goes back to the zone it came from when you click its green button, or to the zone it covers most. The click

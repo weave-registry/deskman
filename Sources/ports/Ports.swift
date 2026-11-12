@@ -122,6 +122,11 @@ extension WindowControl {
     func dragTarget(at point: Point) -> Int?
     /// The mouse went up. Nil when nothing was snapped.
     func endDrag(at point: Point, bypass: Bool) -> CommandOutcome?
+    /// A confirmed drag has rested at `point` (ADR-2611121000): when another window sits in the zone under it, the
+    /// zone splits by the dragged window's shape. The split the drop would make, or nil.
+    func dragRested(at point: Point) -> ZoneSplit?
+    /// The armed split as the mouse is now, its side following the mouse; nil, and disarmed, once it leaves the zone.
+    func dragSplit(at point: Point) -> ZoneSplit?
 
     // The green button (ADR-2611111100).
     /// Note the zone each window sits in. Call it every second.
